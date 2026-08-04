@@ -1,0 +1,39 @@
+{
+  "name": "japan-calendar",
+  "version": "0.0.0",
+  "description": "日本の祝日・営業日・和暦を扱う依存ゼロの TypeScript ライブラリ",
+  "keywords": [
+    "japan",
+    "japanese",
+    "holiday",
+    "祝日",
+    "business-days",
+    "営業日",
+    "wareki",
+    "和暦",
+    "calendar",
+    "cloudflare-workers"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tomatomerde/japan-calendar.git"
+  },
+  "type": "module",
+  "files": [
+    "dist",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "fetch:holidays": "node scripts/fetch-syukujitsu.ts",
+    "report": "node scripts/report.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.scripts.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}
