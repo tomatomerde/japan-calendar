@@ -177,6 +177,20 @@ Not yet published to npm.
   Confirmed each of the 5 mutations from the review is now caught, and
   confirmed zero regressions by re-running all mutations from the first
   three review rounds (10 cases) against the rewritten suite.
+- **The equinox extrapolation (2028 onward) is now guarded.** The
+  official CSV stops at 2027, so `officialMatch.test.ts` structurally
+  cannot reach the years users will most often ask about. Demonstrated
+  the gap by shifting the formula's output *only for years >= 2028*:
+  `officialMatch` reported zero failures. Since there is no ground truth
+  to compare against out there, the new tests in `holidays.test.ts`
+  constrain the shape instead -- every Vernal Equinox Day must land on
+  March 19-21 and every Autumnal Equinox Day on September 22-24 across
+  all 151 supported years, consecutive years may never differ by more
+  than a day (the equinox drifts ~0.24 days a year and resets on leap
+  years), and there must be no discontinuity across the boundary between
+  the official data's last year and the first extrapolated one. The
+  extrapolation-only mutation now fails 3 tests.
+
 - `test/worker.test.ts`: added the adversarial-input cases that had only
   ever been thrown at a running `wrangler dev` by hand -- an 8 KB path, a
   null byte, path traversal, integers past `Number.MAX_SAFE_INTEGER` in

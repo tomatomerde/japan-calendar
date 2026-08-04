@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { OFFICIAL_META } from '../src/data/official.ts';
 import { OutOfRangeError } from '../src/errors.ts';
-import { holidaysForYear, isHoliday, statutoryHolidaysForYear } from '../src/holidays.ts';
+import {
+  holidaysForYear,
+  isHoliday,
+  statutoryHolidaysForYear,
+  MAX_SUPPORTED_YEAR,
+  MIN_SUPPORTED_YEAR,
+} from '../src/holidays.ts';
 
 describe('isHoliday — 2019年GW10連休', () => {
   it('4/27〜5/6の内訳が正しい', () => {
@@ -165,6 +171,60 @@ describe('1949-1954年 — 公式データの範囲外で、突き合わせ検�
         const expected = holiday.name === '春分の日' || holiday.name === '秋分の日' ? false : true;
         expect(holiday.confirmed, `${year} ${holiday.name}`).toBe(expected);
       }
+    }
+  });
+});
+
+describe('春分・秋分の外挿域（2028年以降、照合先が存在しない範囲）', () => {
+  // officialMatch.test.ts が担保できるのは公式データの収録範囲までで、
+  // 2028年以降は近似式による外挿。突き合わせる正解が原理的に無いので、
+  // 「天文学的にありえない値になっていないか」「データ境界で不連続に
+  // なっていないか」という形で縛る。係数を触れば真っ先にここが崩れる。
+  it('春分は必ず3/19〜3/21、秋分は必ず9/22〜9/24に収まる', () => {
+    const outOfRange: string[] = [];
+    for (let year = MIN_SUPPORTED_YEAR; year <= MAX_SUPPORTED_YEAR; year += 1) {
+      const byName = new Map(statutoryHolidaysForYear(year).map((h) => [h.name, h.date]));
+      const vernal = byName.get('春分の日');
+      const autumnal = byName.get('秋分の日');
+      if (vernal !== undefined && (vernal.month !== 3 || vernal.day < 19 || vernal.day > 21)) {
+        outOfRange.push(`${year} 春分 ${vernal.month}/${vernal.day}`);
+      }
+      if (autumnal !== undefined && (autumnal.month !== 9 || autumnal.day < 22 || autumnal.day > 24)) {
+        outOfRange.push(`${year} 秋分 ${autumnal.month}/${autumnal.day}`);
+      }
+    }
+    expect(outOfRange).toEqual([]);
+  });
+
+  it('連続する年の間で日付が2日以上跳ばない', () => {
+    // 分点は年ごとに約0.24日ずつ後ろへずれ、うるう年で1日戻る。
+    // 隣接年の差は常に -1/0/+1 のいずれかになるはずで、それ以上跳ぶのは
+    // 係数かうるう年補正が壊れた合図。
+    const jumps: string[] = [];
+    for (let year = MIN_SUPPORTED_YEAR; year < MAX_SUPPORTED_YEAR; year += 1) {
+      for (const name of ['春分の日', '秋分の日']) {
+        const here = statutoryHolidaysForYear(year).find((h) => h.name === name)?.date;
+        const next = statutoryHolidaysForYear(year + 1).find((h) => h.name === name)?.date;
+        if (here === undefined || next === undefined) continue;
+        if (Math.abs(next.day - here.day) > 1) {
+          jumps.push(`${name} ${year}(${here.day}) -> ${year + 1}(${next.day})`);
+        }
+      }
+    }
+    expect(jumps).toEqual([]);
+  });
+
+  it('公式データの最終年とその翌年の間で不連続にならない', () => {
+    // 収録範囲の内と外の境目。ここで飛べば、確定データと外挿の
+    // つなぎ目が壊れている。
+    const lastYear = OFFICIAL_META.lastYear;
+    if (lastYear === null || lastYear >= MAX_SUPPORTED_YEAR) return;
+    for (const name of ['春分の日', '秋分の日']) {
+      const inside = statutoryHolidaysForYear(lastYear).find((h) => h.name === name)?.date;
+      const outside = statutoryHolidaysForYear(lastYear + 1).find((h) => h.name === name)?.date;
+      expect(inside, name).toBeDefined();
+      expect(outside, name).toBeDefined();
+      expect(Math.abs((outside as { day: number }).day - (inside as { day: number }).day), name).toBeLessThanOrEqual(1);
     }
   });
 });
