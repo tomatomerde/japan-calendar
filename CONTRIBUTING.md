@@ -14,6 +14,11 @@ Node 20+ is required. Scripts and tests run directly against `.ts` files
 using Node's built-in type stripping — no build step is needed for
 development.
 
+For current work-in-progress state — what's been reviewed, what's still
+open, and what's waiting on a manual step — see [NOTES.md](./NOTES.md).
+This file documents the invariants that don't change; NOTES.md tracks the
+things that do.
+
 ## Project layout
 
 ```
