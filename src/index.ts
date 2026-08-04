@@ -1,7 +1,5 @@
 /**
  * japan-calendar — 日本の祝日・営業日・和暦を扱う依存ゼロのライブラリ。
- *
- * 営業日API（isBusinessDay / addBusinessDays / businessDaysBetween）は実装中。
  */
 
 export {
@@ -58,3 +56,5 @@ export {
   statutoryHolidaysForYear,
 } from './holidays.js';
 export type { Holiday, HolidayCategory } from './types.js';
+
+export { addBusinessDays, businessDaysBetween, isBusinessDay, type CalendarKind } from './businessDays.js';

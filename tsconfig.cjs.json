@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "CommonJS",
+    "moduleResolution": "Node10",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    // package.json の "type": "module" により、tsc はソースツリー全体を ESM だと
+    // みなす（impliedNodeFormat）。verbatimModuleSyntax を有効にしたままだと
+    // CommonJS 出力先でもそのESM判定と矛盾してエラーになるため、この
+    // プロジェクトだけ無効化する。import/export の書き方自体はESM版と共通。
+    "verbatimModuleSyntax": false,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "declaration": false,
+    "outDir": "dist/cjs",
+    "rootDir": "src",
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}

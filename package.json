@@ -20,6 +20,17 @@
     "url": "git+https://github.com/tomatomerde/japan-calendar.git"
   },
   "type": "module",
+  "sideEffects": false,
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    }
+  },
   "files": [
     "dist",
     "NOTICE"
@@ -30,13 +41,22 @@
   "scripts": {
     "fetch:holidays": "node scripts/fetch-syukujitsu.ts",
     "report": "node scripts/report.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.dev.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.dev.json && tsc --noEmit -p tsconfig.worker.json",
     "test": "vitest run",
-    "test:tz": "for tz in Asia/Tokyo UTC Pacific/Kiritimati Pacific/Midway; do echo \"--- TZ=$tz ---\"; TZ=$tz vitest run || exit 1; done"
+    "test:tz": "for tz in Asia/Tokyo UTC Pacific/Kiritimati Pacific/Midway; do echo \"--- TZ=$tz ---\"; TZ=$tz vitest run || exit 1; done",
+    "clean": "rm -rf dist",
+    "build:esm": "tsc -p tsconfig.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json && node -e \"require('node:fs').writeFileSync('dist/cjs/package.json', JSON.stringify({type:'commonjs'}, null, 2) + '\\n')\"",
+    "build": "npm run clean && npm run build:esm && npm run build:cjs",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "worker:dev": "wrangler dev",
+    "worker:deploy": "wrangler deploy"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260804.1",
     "@types/node": "^22.10.0",
     "typescript": "^5.7.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wrangler": "^4.118.0"
   }
 }

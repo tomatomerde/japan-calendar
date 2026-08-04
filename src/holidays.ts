@@ -17,7 +17,7 @@ import type { Holiday } from './types.js';
 export const MIN_SUPPORTED_YEAR = 1949;
 export const MAX_SUPPORTED_YEAR = 2099;
 
-function assertYearInRange(year: number): void {
+export function assertYearInRange(year: number): void {
   if (year < MIN_SUPPORTED_YEAR || year > MAX_SUPPORTED_YEAR) {
     throw new OutOfRangeError(
       `対応範囲外の年: ${year}。祝日APIは ${MIN_SUPPORTED_YEAR}〜${MAX_SUPPORTED_YEAR} 年のみ対応する。`,
