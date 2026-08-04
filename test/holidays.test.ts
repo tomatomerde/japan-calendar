@@ -109,3 +109,62 @@ describe('isHoliday — 平日は null', () => {
     expect(isHoliday('2026-08-04')).toBeNull();
   });
 });
+
+describe('1949-1954年 — 公式データの範囲外で、突き合わせ検証が効かない唯一の期間', () => {
+  // 内閣府CSVは1955年から。この6年ぶんはルールエンジンの出力を照合する
+  // 相手が存在せず、officialMatch.test.ts の守備範囲外になる。実際、
+  // ここを固定するテストが無かったころは「元日を1949-54年から丸ごと
+  // 削除する」変異を入れても全テストが通ってしまっていた。
+  //
+  // 照合先が無い以上、期待値は法律から起こす。祝日法（昭和23年法律第178号、
+  // 1949年施行）が定めた祝日は次の9つで、この期間中の改正は無い
+  // （建国記念の日=1967, 敬老の日・体育の日=1966, 海の日=1996,
+  //  山の日=2016 はいずれも後年）。
+  const NINE_ORIGINAL_HOLIDAYS = [
+    '元日',
+    '成人の日',
+    '春分の日',
+    '天皇誕生日',
+    '憲法記念日',
+    'こどもの日',
+    '秋分の日',
+    '文化の日',
+    '勤労感謝の日',
+  ];
+
+  it('1949-1954年の法定祝日はちょうど祝日法制定時の9つ', () => {
+    for (let year = 1949; year <= 1954; year += 1) {
+      const names = statutoryHolidaysForYear(year).map((h) => h.name);
+      expect(names, String(year)).toEqual(NINE_ORIGINAL_HOLIDAYS);
+    }
+  });
+
+  it('固定日の祝日は法律どおりの月日にある', () => {
+    for (let year = 1949; year <= 1954; year += 1) {
+      const byName = new Map(statutoryHolidaysForYear(year).map((h) => [h.name, h.date]));
+      expect(byName.get('元日'), String(year)).toMatchObject({ month: 1, day: 1 });
+      expect(byName.get('成人の日'), String(year)).toMatchObject({ month: 1, day: 15 });
+      expect(byName.get('天皇誕生日'), String(year)).toMatchObject({ month: 4, day: 29 });
+      expect(byName.get('憲法記念日'), String(year)).toMatchObject({ month: 5, day: 3 });
+      expect(byName.get('こどもの日'), String(year)).toMatchObject({ month: 5, day: 5 });
+      expect(byName.get('文化の日'), String(year)).toMatchObject({ month: 11, day: 3 });
+      expect(byName.get('勤労感謝の日'), String(year)).toMatchObject({ month: 11, day: 23 });
+    }
+  });
+
+  it('振替休日も国民の休日も発生しない（制度開始は1973年/1985年）', () => {
+    for (let year = 1949; year <= 1954; year += 1) {
+      const derived = holidaysForYear(year).filter((h) => h.category !== 'statutory');
+      expect(derived, String(year)).toEqual([]);
+    }
+  });
+
+  it('春分/秋分は近似式によるもので confirmed=false（公式データの範囲外なので）', () => {
+    for (let year = 1949; year <= 1954; year += 1) {
+      for (const holiday of statutoryHolidaysForYear(year)) {
+        const expected = holiday.name === '春分の日' || holiday.name === '秋分の日' ? false : true;
+        expect(holiday.confirmed, `${year} ${holiday.name}`).toBe(expected);
+      }
+    }
+  });
+});

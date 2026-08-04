@@ -177,6 +177,22 @@ Not yet published to npm.
   Confirmed each of the 5 mutations from the review is now caught, and
   confirmed zero regressions by re-running all mutations from the first
   three review rounds (10 cases) against the rewritten suite.
+- **1949-1954 is now pinned by tests.** The official CSV starts at 1955,
+  so `officialMatch.test.ts` structurally cannot cover the first six
+  supported years, and no hand-written test covered them either. The gap
+  was real, not theoretical: deleting 元日 (New Year's Day) from
+  1949-1954 entirely, or moving 天皇誕生日 out of the range, left all
+  203 tests passing. Since there's no data to check against, the
+  expectations are derived from the statute instead -- the Public Holiday
+  Law (1948, in force from 1949) established exactly nine holidays, and
+  none of the amendments land in this window (建国記念の日 1967,
+  敬老の日/体育の日 1966, 海の日 1996, 山の日 2016). `holidays.test.ts`
+  now asserts that each of those six years has exactly those nine
+  holidays on their statutory dates, produces no substitute or national
+  holidays (those rules start in 1973 and 1985), and marks the equinoxes
+  `confirmed: false`. Confirmed by mutation that all four previously
+  invisible changes now fail.
+
 - **Error `name` no longer breaks under minification.** Every error class
   set `this.name` from `new.target.name`, which reads the *class
   identifier* -- something a minifier is free to rename. Bundling the
