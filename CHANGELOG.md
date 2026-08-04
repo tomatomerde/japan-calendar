@@ -177,6 +177,18 @@ Not yet published to npm.
   Confirmed each of the 5 mutations from the review is now caught, and
   confirmed zero regressions by re-running all mutations from the first
   three review rounds (10 cases) against the rewritten suite.
+- **The public API surface is now pinned by a test.** `src/index.ts` is
+  the barrel every npm consumer imports through, but nothing referenced
+  it except incidentally, so deleting an export from it -- `daysInMonth`,
+  `compareCivil`, `formatWareki`, `statutoryHolidaysForYear` were all
+  tried -- changed the published API without failing a single test or
+  type-check. For a package heading to npm that is a silent breaking
+  change. `test/publicApi.test.ts` asserts the exact set of 35 exports,
+  that every function-shaped one is callable, that the error classes all
+  extend `JapanCalendarError`, and that the exported constants hold their
+  expected values. It fails on an accidental *addition* too, since a
+  wider-than-intended API is expensive to walk back after release.
+
 - **1949-1954 is now pinned by tests.** The official CSV starts at 1955,
   so `officialMatch.test.ts` structurally cannot cover the first six
   supported years, and no hand-written test covered them either. The gap
