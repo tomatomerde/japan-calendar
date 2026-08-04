@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 全ての日付計算は JST 固定なので、プロセスのタイムゾーンが何であっても
+        # 結果は変わらないはず。日付変更線の両側（UTC+14 と UTC-11）を含めて回す。
+        timezone:
+          - Asia/Tokyo
+          - UTC
+          - Pacific/Kiritimati
+          - Pacific/Midway
+    name: test (TZ=${{ matrix.timezone }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+        env:
+          TZ: ${{ matrix.timezone }}

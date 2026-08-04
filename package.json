@@ -30,10 +30,13 @@
   "scripts": {
     "fetch:holidays": "node scripts/fetch-syukujitsu.ts",
     "report": "node scripts/report.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.scripts.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.dev.json",
+    "test": "vitest run",
+    "test:tz": "for tz in Asia/Tokyo UTC Pacific/Kiritimati Pacific/Midway; do echo \"--- TZ=$tz ---\"; TZ=$tz vitest run || exit 1; done"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.10"
   }
 }
