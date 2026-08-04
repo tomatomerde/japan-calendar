@@ -18,14 +18,21 @@
 発端になったセッションの名残りで、**そちらには一切コミットしていない**。
 指定ブランチは未使用のまま残してある。
 
-つまり: 指示が別のリポジトリを指していても、実作業は japan-calendar の `main` で行う。
+つまり: 指示が別のリポジトリを指していても、実作業は japan-calendar で行う。
 判断に迷ったらユーザーに確認する。
+
+**ブランチ運用: main への直 push・force push は禁止。** 作業ブランチを切って
+PR を作る（dev-standards の共通方針に合わせて2026-08-04に切り替えた。
+それ以前の33コミットは main への直 push で積まれているが、遡及はしない）。
 
 ## 現在地
 
 npm 公開の直前。ライブラリ・営業日API・和暦・Cloudflare Workers・CI・
-月次データ更新ワークフローまで実装済み。
-最新コミット `91090c7` で CI 全ジョブ green、テストは 244 件（12ファイル）。
+月次データ更新ワークフローまで実装済み。テストは 244 件（12ファイル）。
+
+`CLAUDE.md` は dev-standards の共通テンプレート（`CLAUDE.template.md @ 2ddb229`）
+ベースに再構成済み。**「ここから下は共通」以降は原本と一字一句同一に保つこと。**
+プロジェクト固有のルールは先頭セクションに置く。
 
 コードとテストの側で分かっている未対応事項はない。残っているのは下記の
 「人間が決めること」と「人間が操作すること」だけ。
@@ -49,7 +56,15 @@ npm 公開の直前。ライブラリ・営業日API・和暦・Cloudflare Worke
 
 ## 人間が操作すること
 
-どちらもこのセッションのプロキシからは触れないため、手元の環境が必要。
+いずれもこのセッションのプロキシからは触れないため、手元の環境が必要。
+
+- **Actions シークレット `DEV_STANDARDS_TOKEN` の設定**
+  `.github/workflows/check-claude-md-drift.yml` が private な dev-standards を
+  checkout するのに必要。未設定だと CLAUDE.md を触る PR でこのジョブだけが
+  赤くなる（他のジョブとリリース物には影響しない）。
+  dev-standards への Contents: Read 権限を持つ Fine-grained PAT を作り、
+  Settings → Secrets and variables → Actions → New repository secret に
+  `DEV_STANDARDS_TOKEN` として登録する。
 
 - **「Allow GitHub Actions to create and approve pull requests」**
   オフだと `update-holidays.yml` の PR 作成ステップが失敗する（push と

@@ -222,6 +222,28 @@ long cache lifetime; responses with a tentative holiday get a short one.
 Errors are the library's own exceptions, passed straight through as
 `{ error: { type, message } }` with a 4xx status.
 
+## Support scope and disclaimer
+
+What this library covers, and what it deliberately does not:
+
+- **Supported years.** Holiday and business-day functions cover
+  1949-2099; anything outside raises `OutOfRangeError`. Wareki conversion
+  covers Meiji 6-1-1 (1873-01-01) onward.
+- **Equinox dates beyond `equinoxConfirmedThrough` are forecasts, not
+  facts.** They are returned with `confirmed: false`. Don't treat them as
+  settled dates — check the flag.
+- **1949-1954 cannot be independently verified.** Those six years fall
+  outside the official data, so they rely on the approximation formula's
+  extrapolation. They are pinned by tests derived from the text of the
+  1948 Public Holiday Law, which is the best available check, not a
+  confirmation against published dates.
+- **Only two calendars are provided**, `'national'` and `'bank'`.
+  Company- or industry-specific closure days are out of scope.
+- **No warranty.** The software is provided "AS IS" under the MIT
+  License. Holiday and business-day results are not guaranteed to be
+  fit for legal, financial, or regulatory decisions; verify against the
+  Cabinet Office's own publication where correctness is load-bearing.
+
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md).
