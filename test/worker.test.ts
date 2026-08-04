@@ -296,3 +296,48 @@ describe('HTTP メソッド', () => {
     expect(res.headers.get('allow')).toBe('GET, HEAD');
   });
 });
+
+describe('敵対的な入力（500 を出さないこと）', () => {
+  // 公開HTTP APIとして、クライアント起因の入力でサーバ障害(5xx)を
+  // 返してはいけない。ここは wrangler dev に手で投げて確認していた
+  // 分を恒久化したもの。
+  const cases: ReadonlyArray<readonly [string, string, number]> = [
+    ['非常に長いパス', `/v1/holidays/${'9'.repeat(8000)}`, 400],
+    ['ヌル文字', '/v1/holidays/%00', 400],
+    ['パストラバーサル', '/v1/holidays/..%2f..%2fetc%2fpasswd', 400],
+    ['巨大な days', '/v1/business-days/add?date=2026-01-01&days=99999999999999999999', 400],
+    ['負の巨大な days', '/v1/business-days/add?date=2026-01-01&days=-99999999999999999999', 400],
+    ['空の era', '/v1/wareki/reverse?era=&year=1&month=1&day=1', 400],
+    ['未知の era', '/v1/wareki/reverse?era=%E6%9E%B6%E7%A9%BA&year=1&month=1&day=1', 400],
+    ['year=0', '/v1/wareki/reverse?era=%E4%BB%A4%E5%92%8C&year=0&month=1&day=1', 400],
+    ['year=-1', '/v1/wareki/reverse?era=%E4%BB%A4%E5%92%8C&year=-1&month=1&day=1', 400],
+    ['day=0', '/v1/wareki/reverse?era=%E4%BB%A4%E5%92%8C&year=1&month=1&day=0', 400],
+    ['全角数字の年', '/v1/holidays/%EF%BC%92%EF%BC%90%EF%BC%92%EF%BC%96', 400],
+  ];
+
+  for (const [label, path, status] of cases) {
+    it(`${label} は ${status} を返す`, async () => {
+      await expectJsonError(get(path), status);
+    });
+  }
+
+  it('重複したクエリパラメータは最初の値を採用する', async () => {
+    // URLSearchParams.get() の仕様。曖昧な入力で落ちたり、
+    // 最後の値を拾ったりしないことを固定する。
+    const body = (await expectJsonSuccess(
+      get('/v1/business-days/add?date=2026-01-01&date=2027-06-15&days=1'),
+      'short',
+    )) as { date: string };
+    expect(body.date).toBe('2026-01-02');
+  });
+
+  it('対応範囲いっぱいの問い合わせでも即座に応答する', async () => {
+    // Workers の CPU 予算内であること。閉形式でなくなれば桁が変わる。
+    const started = performance.now();
+    for (let i = 0; i < 20; i += 1) {
+      const res = get('/v1/business-days/between?from=1949-01-01&to=2099-12-31&calendar=bank');
+      expect(res.status).toBe(200);
+    }
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+});

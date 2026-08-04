@@ -177,6 +177,15 @@ Not yet published to npm.
   Confirmed each of the 5 mutations from the review is now caught, and
   confirmed zero regressions by re-running all mutations from the first
   three review rounds (10 cases) against the rewritten suite.
+- `test/worker.test.ts`: added the adversarial-input cases that had only
+  ever been thrown at a running `wrangler dev` by hand -- an 8 KB path, a
+  null byte, path traversal, integers past `Number.MAX_SAFE_INTEGER` in
+  both directions, an empty and an unknown era, zero and negative era
+  years, and full-width digits. All must be 4xx: a public HTTP API must
+  not answer a client mistake with a server error. Also pinned that
+  duplicate query parameters take the first value, and that a
+  full-supported-range query stays fast enough for a Workers request.
+
 - **`scripts/report.ts` had no tests at all**, including
   `computeEquinoxConfirmedThrough` -- the function that decides the
   `confirmed` boundary, and the one CONTRIBUTING singles out as
