@@ -79,7 +79,11 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Pack the publishable tarball
-        run: npm pack --pack-destination /tmp/pkg
+        # --pack-destination does not create the directory; npm fails with
+        # ENOENT if it's missing.
+        run: |
+          mkdir -p /tmp/pkg
+          npm pack --pack-destination /tmp/pkg
 
       - uses: actions/setup-node@v4
         with:
