@@ -75,12 +75,17 @@ npm 公開の直前。ライブラリ・営業日API・和暦・Cloudflare Worke
   経路）だったので履歴からも判断できない。
   設定場所: Settings → Actions → General → Workflow permissions
 
-- **`actions/checkout@v4` / `actions/setup-node@v4` を最新メジャーへ**
-  実行ログに「Node 20 を対象にしているが Node 24 で強制実行されている」
-  という非推奨警告が出る。GitHub が Node 20 ランタイムを撤去した時点で
-  ワークフローが壊れる。**v5 が実在するか確認できなかったため、推測で
-  上げるのは避けた**（プロキシが `actions/*` の公開リポジトリへの API も
-  403 にする）。該当箇所は `ci.yml` に9箇所、`update-holidays.yml` に2箇所。
+- **次回の「Update holiday data」実行で push が通ることを確認する**
+  `actions/checkout` を v4 → v7 に上げた（v6 でトークンの保存先が
+  `.git/config` の extraheader から別ファイルに変わっている）。このワークフローの
+  「Commit and push」は checkout が保存した資格情報に依存しているが、
+  **その経路は未検証** — 発火が `workflow_dispatch` / 月次スケジュール限定で、
+  かつ公式CSVに差分が出たときしか走らないため、PR の CI では踏めない。
+  `persist-credentials` の既定値が `true` のままであることは
+  v7 の `action.yml` で確認済みだが、実際に push が通るかは見ていない。
+  次にこのワークフローが走ったとき（毎月1日 06:00 JST）にログを見る。
+  失敗する場合の対処は、Commit and push ステップに
+  `env: GH_TOKEN`/明示的な remote URL 設定を足すこと。
 
 GitHub の Topics は設定済み（API で確認済み、12件）。
 
