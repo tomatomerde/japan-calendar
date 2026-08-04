@@ -39,6 +39,7 @@
   },
   "files": [
     "dist",
+    "src",
     "NOTICE",
     "CHANGELOG.md"
   ],

@@ -15,6 +15,7 @@
 import { createHash } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { OFFICIAL_HOLIDAYS, OFFICIAL_META } from '../src/data/official.ts';
 import type { OfficialHolidayRow } from '../src/data/official-types.ts';
 import { computeEquinoxConfirmedThrough, findAnomalies, renderReport } from './report.ts';
 
@@ -28,6 +29,45 @@ const SANITY = {
   maxFirstYear: 1960,
   minLastYear: 2020,
 } as const;
+
+/**
+ * Absolute floors alone can't catch a *regression*: if the upstream file
+ * were ever republished missing its most recent years, the result would
+ * still clear every threshold above while silently walking
+ * `equinoxConfirmedThrough` backwards -- which flips `confirmed` from
+ * `true` to `false` for dates that were previously finalized. Since the
+ * data only ever grows in practice, refuse to shrink it, and require an
+ * explicit override for the rare legitimate case (an upstream correction
+ * that genuinely removes rows).
+ */
+const ALLOW_SHRINK = process.env['ALLOW_DATA_SHRINK'] === '1';
+
+function assertNoRegression(rows: readonly OfficialHolidayRow[]): void {
+  const previousRowCount = OFFICIAL_HOLIDAYS.length;
+  const previousLastYear = OFFICIAL_META.lastYear;
+  // Nothing to compare against on the very first run.
+  if (previousRowCount === 0 || previousLastYear === null) return;
+
+  const lastYear = Number((rows[rows.length - 1] as OfficialHolidayRow)[0].slice(0, 4));
+  const problems: string[] = [];
+  if (rows.length < previousRowCount) {
+    problems.push(`row count went down: ${previousRowCount} -> ${rows.length}`);
+  }
+  if (lastYear < previousLastYear) {
+    problems.push(`latest year went down: ${previousLastYear} -> ${lastYear}`);
+  }
+  if (problems.length === 0) return;
+
+  if (ALLOW_SHRINK) {
+    console.warn(`WARNING: data shrank, continuing because ALLOW_DATA_SHRINK=1:\n  ${problems.join('\n  ')}`);
+    return;
+  }
+  throw new Error(
+    `The fetched data is smaller than what is already committed:\n  ${problems.join('\n  ')}\n` +
+      `This would silently downgrade 'confirmed' for dates that are currently finalized. ` +
+      `If the upstream file really did shrink, re-run with ALLOW_DATA_SHRINK=1.`,
+  );
+}
 
 /** Trims surrounding whitespace, including the U+3000 full-width space. */
 function trimJa(value: string): string {
@@ -64,7 +104,7 @@ export function parseCsv(text: string): OfficialHolidayRow[] {
   return rows;
 }
 
-function assertSane(rows: readonly OfficialHolidayRow[]): void {
+export function assertSane(rows: readonly OfficialHolidayRow[]): void {
   if (rows.length < SANITY.minRows) {
     throw new Error(`Too few rows (${rows.length} < ${SANITY.minRows}). The fetched content looks suspect.`);
   }
@@ -84,6 +124,7 @@ function assertSane(rows: readonly OfficialHolidayRow[]): void {
   if (computeEquinoxConfirmedThrough(rows) === null) {
     throw new Error('Could not find Vernal/Autumnal Equinox Day. The name format may have changed.');
   }
+  assertNoRegression(rows);
 }
 
 function renderModule(rows: readonly OfficialHolidayRow[], sha256: string, fetchedAt: string): string {

@@ -112,6 +112,33 @@ non-business on both calendars as New Year's Day). Weekends are
 non-business days on both calendars. `addBusinessDays(date, 0)` returns
 `date` unchanged even if it isn't itself a business day.
 
+### Accepted date input
+
+Every function that takes a date accepts three forms:
+
+```ts
+isHoliday('2026-09-22');                      // YYYY-MM-DD — a calendar date, used as-is
+isHoliday({ year: 2026, month: 9, day: 22 }); // a plain object — same, no timezone involved
+isHoliday(new Date());                        // an instant — reduced to the date it is *in JST*
+isHoliday('2026-09-22T00:00:00Z');            // an instant too (offset required — see below)
+```
+
+A date-time string **must carry an explicit UTC offset** (`Z`, `+09:00`,
+or `+0900`). Anything else is rejected with `InvalidDateInputError`:
+
+```ts
+isHoliday('2026-09-22T00:00:00');  // ✗ InvalidDateInputError — no offset
+isHoliday('2026/09/22');           // ✗ InvalidDateInputError — not YYYY-MM-DD
+isHoliday('2026-9-22');            // ✗ InvalidDateInputError — not zero-padded
+```
+
+This is deliberate. `Date.parse` resolves an offset-less date-time using
+the *host machine's* timezone, so `'2026-09-22T00:00:00'` would mean a
+different day depending on where the code runs — and for a holiday
+library a different day can mean a different answer. Rather than guess,
+the library refuses the ambiguous input: pass a plain `YYYY-MM-DD` string
+if you mean a calendar date, or add an offset if you mean an instant.
+
 ### About the equinox approximation formula
 
 The approximation formula in `src/rules/equinox.ts` has been verified

@@ -177,3 +177,29 @@ Not yet published to npm.
   Confirmed each of the 5 mutations from the review is now caught, and
   confirmed zero regressions by re-running all mutations from the first
   three review rounds (10 cases) against the rewritten suite.
+- Published source maps pointed at `src/*.ts` files that weren't in the
+  tarball (and had no `sourcesContent`), so all 28 of them were dangling:
+  a consumer stepping into the library in a debugger got "source not
+  found". Added `src` to `package.json`'s `files`. Verified by unpacking
+  the tarball and resolving every `sources` entry in every `.map` — 28/28
+  now resolve, against 0/28 before. Package size 56.4 kB → 71.5 kB;
+  `@arethetypeswrong/cli` stays 4/4 green.
+- `scripts/fetch-syukujitsu.ts` had no regression guard: its sanity
+  checks used absolute floors (`minRows: 500`, `minLastYear: 2020`), so
+  an upstream file that was ever republished missing its most recent
+  years would clear every threshold. Demonstrated by truncating the
+  committed data to drop just its final year: all 183 tests passed, and
+  `equinoxConfirmedThrough` silently walked back from 2027 to 2026,
+  flipping `isHoliday('2027-03-21').confirmed` from `true` to `false`.
+  Added `assertNoRegression`, which compares against the already-committed
+  `OFFICIAL_META` and refuses a drop in either row count or latest year
+  (overridable with `ALLOW_DATA_SHRINK=1` for a genuine upstream
+  correction). Added `test/fetchScript.test.ts` covering `parseCsv` and
+  the guard; confirmed by mutation that removing the guard, either of its
+  two checks, or forcing the override makes the tests fail.
+- `README.md` / `README.ja.md` documented no accepted input formats at
+  all, even though the offset-requirement change above made some
+  previously-working strings throw. Added an "Accepted date input"
+  section to both, showing the three accepted forms and the three
+  rejected ones with the reason. Every example in both READMEs was
+  executed against the built package to confirm it behaves as documented.
