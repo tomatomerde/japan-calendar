@@ -62,3 +62,12 @@ Not yet published to npm.
   over `GET /v1/*` routes.
 - A dual ESM/CommonJS build (`npm run build`) and package layout ready
   for npm publishing. CI runs `build` alongside `typecheck` and `test`.
+  `exports` declares separate `types` for the `import` and `require`
+  conditions, each pointing at its own `.d.ts` (`dist/esm` vs `dist/cjs`);
+  verified with `@arethetypeswrong/cli` (`node10`, `node16` from both CJS
+  and ESM, and `bundler` all pass). Without this, a `require()` consumer
+  under `moduleResolution: node16`/`nodenext` would resolve to the ESM
+  type declarations for a CommonJS file (a "false ESM" mismatch) --
+  `tsconfig.cjs.json` previously set `declaration: false` and emitted no
+  types for `dist/cjs` at all, so the single shared `types` entry silently
+  pointed everyone at the ESM ones.

@@ -27,9 +27,14 @@
   "types": "./dist/esm/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/esm/index.d.ts",
-      "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js"
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
     }
   },
   "files": [
@@ -46,6 +51,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.dev.json && tsc --noEmit -p tsconfig.worker.json",
     "test": "vitest run",
     "test:tz": "for tz in Asia/Tokyo UTC Pacific/Kiritimati Pacific/Midway; do echo \"--- TZ=$tz ---\"; TZ=$tz vitest run || exit 1; done",
+    "test:data": "vitest run --exclude test/performance.test.ts",
     "clean": "rm -rf dist",
     "build:esm": "tsc -p tsconfig.json",
     "build:cjs": "tsc -p tsconfig.cjs.json && node -e \"require('node:fs').writeFileSync('dist/cjs/package.json', JSON.stringify({type:'commonjs'}, null, 2) + '\\n')\"",

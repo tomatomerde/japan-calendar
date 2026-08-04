@@ -75,17 +75,18 @@ jobs:
       # opened below still goes through the normal pull_request CI, but by
       # then the bad data would already be sitting on a pushed branch.
       #
-      # Excludes test/performance.test.ts: it asserts on wall-clock timing,
-      # which depends on the runner's hardware/load, not on the data being
-      # updated here. A slow runner shouldn't be able to block a routine
-      # data update; that assertion still runs on every push/PR via CI (ci.yml).
+      # `npm run test:data` excludes test/performance.test.ts (see
+      # package.json): it asserts on wall-clock timing, which depends on
+      # the runner's hardware/load, not on the data being updated here. A
+      # slow runner shouldn't be able to block a routine data update; that
+      # assertion still runs on every push/PR via CI (ci.yml)'s `npm test`.
       - name: Install dependencies
         if: steps.diff.outputs.changed == 'true'
         run: npm ci
 
       - name: Test the regenerated data against the rule engine
         if: steps.diff.outputs.changed == 'true'
-        run: npx vitest run $(ls test/*.test.ts | grep -v performance.test.ts)
+        run: npm run test:data
 
       - name: Commit and push
         if: steps.diff.outputs.changed == 'true'

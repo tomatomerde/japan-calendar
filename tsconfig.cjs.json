@@ -16,7 +16,13 @@
     "verbatimModuleSyntax": false,
     "esModuleInterop": true,
     "isolatedModules": true,
-    "declaration": false,
+    // CJS 利用者向けに .d.ts を dist/cjs にも出力する。dist/cjs/package.json
+    // (ビルド時に生成、{"type":"commonjs"}) が最も近い package.json になるため、
+    // TypeScript の node16/nodenext 解決はここに置いた .d.ts を CJS 用の
+    // 型定義として扱う。exports の "require" 条件がこちらを指すことで、
+    // ESM/CJS どちらの利用者にも正しい形式の型定義を届けられる
+    // （require() 利用者に ESM 用 .d.ts を渡す "false ESM" を防ぐ）。
+    "declaration": true,
     "outDir": "dist/cjs",
     "rootDir": "src",
     "skipLibCheck": true
