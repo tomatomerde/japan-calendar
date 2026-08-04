@@ -140,8 +140,27 @@ isHoliday('2026-9-22');            // ✗ InvalidDateInputError — ゼロ埋め
   1件でもあれば失敗する。祝日ルールの正しさを担保する最も強い検証。
 - `test/holidays.test.ts` / `test/businessDays.test.ts` — 公式データの収録
   範囲外や、法改正の境界年など、ピンポイントのケースを手書きで検証する。
+  公式データが届かない1949〜1954年の6年ぶんは、祝日法（昭和23年法律
+  第178号）の条文を根拠に固定している。
 - `test/civil.test.ts` / `test/input.test.ts` / `test/wareki.test.ts` —
-  日付基盤とタイムゾーン非依存性、和暦変換の検証。
+  日付基盤とタイムゾーン非依存性、和暦変換の検証。`input.test.ts` は
+  日付×UTCオフセット形式の全組み合わせを、実装とは別経路で計算した
+  期待値と突き合わせる。
+- `test/invariants.test.ts` — 1949〜2099年の全域で成り立つべき性質
+  （日付の重複が無い、振替休日・国民の休日が日曜に来ない、祝日は必ず
+  非営業日）と、ライブラリが返す値が不変であることの検証。
+- `test/errors.test.ts` — エラーの `name`。ミニファイヤを実際に走らせる
+  検証を含む（ミニファイこそが `name` を壊す原因のため）。
+- `test/worker.test.ts` — HTTP API。エクスポートされた `fetch` ハンドラを
+  直接呼ぶ。全ルートの応答を共通の契約（content-type / CORS / キャッシュ
+  階層、エラーの封筒形状と `no-store`）と、各ルート固有のペイロードの
+  両面で検証する。
+- `test/fetchScript.test.ts` — CSVのパースと、データ更新スクリプトの
+  健全性チェック・退行ガード。これらは通常 GitHub Actions 上でしか
+  動かないため、ここで単体検証する。
+- `test/performance.test.ts` — `businessDaysBetween` が閉形式のままで
+  あることを検証する。日単位走査に退行してもこのテストだけが検出する
+  （素朴な実装でも答えは同じで、遅くなるだけのため）。
 
 ```sh
 npm test               # 全テスト

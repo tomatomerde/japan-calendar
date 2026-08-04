@@ -30,9 +30,10 @@ src/                   library source
   businessDays.ts         isBusinessDay / addBusinessDays / businessDaysBetween
   rules/                  holiday law, exceptions, equinox formula, substitute/national-holiday derivation
   data/                   generated official data (do not edit official.ts by hand)
+  errors.ts               the exception hierarchy (names are literals — see the invariants below)
 scripts/                 data-fetching and reporting scripts
 worker/                  Cloudflare Workers HTTP API
-test/                    vitest test suite
+test/                    vitest test suite (see README's "Test suite" for what each file covers)
 ```
 
 ## Core invariants
@@ -55,6 +56,33 @@ reintroduce a bug that was deliberately fixed.
   It's derived by `scripts/report.ts` as the latest year that includes
   both Vernal and Autumnal Equinox Day in the official data. Don't
   replace this with a manually maintained year.
+- **`toCivilDate` must keep requiring an explicit offset on date-time
+  strings.** `Date.parse` is a local-timezone API in disguise: given
+  `'2026-09-22T00:00:00'` it resolves the value using the *host's*
+  timezone. Relaxing `OFFSET_DATE_TIME` to "be more forgiving" would
+  reintroduce a bug where `isHoliday` returned 国民の休日 under
+  `TZ=Asia/Tokyo` but 敬老の日 under `TZ=Pacific/Kiritimati` for the same
+  input. The four-timezone matrix does not catch this by itself — the
+  offset sweep in `test/input.test.ts` is what does.
+- **Memoized holiday lists must stay frozen.** `holidaysForYear` and
+  `statutoryHolidaysForYear` hand the *same* array instance to every
+  caller. Dropping the `Object.freeze` (it looks like pure overhead) lets
+  a consumer's `.sort()` or `.length = 0` corrupt the cache for the whole
+  process — and on Workers, for every later request sharing the isolate.
+  `readonly Holiday[]` is compile-time only and does nothing for
+  JavaScript consumers.
+- **Error `name`s must be assigned as string literals.** Setting
+  `this.name` from `new.target.name` reads the class identifier, which
+  minifiers rename: bundling with `esbuild --minify` turned the names
+  into `d`, `u`, and `y`. For the same reason `worker/index.ts` uses
+  `error.name`, not `error.constructor.name`. `test/errors.test.ts` runs
+  a real minifier, because nothing else can catch a regression here.
+- **The data fetch must refuse to shrink.** `assertNoRegression` in
+  `scripts/fetch-syukujitsu.ts` compares against the committed
+  `OFFICIAL_META`. Without it, an upstream file republished without its
+  most recent years passes every absolute threshold while silently
+  walking `equinoxConfirmedThrough` backwards, flipping `confirmed` from
+  `true` to `false` for dates that were already finalized.
 
 ## Updating the official holiday data
 
