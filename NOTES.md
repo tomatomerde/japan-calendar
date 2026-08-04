@@ -10,32 +10,21 @@
 npm 公開の直前。ライブラリ・営業日API・和暦・Cloudflare Workers・CI・
 月次データ更新ワークフローまで実装済み。CI は全ジョブ green。
 
-## 未対応（Workerレビューで検出、未修正）
+Workerレビューで検出された4件（下記「解決済み」参照）は修正・`wrangler dev`
+での再現確認済み。現時点で既知の未対応事項はない。
 
-`worker/index.ts` を実際に起動して敵対的入力を投げた結果:
+## 解決済み（Workerレビューで検出）
 
-1. **[中] 不正なURLエスケープが 500 を返す**
-   `GET /v1/holidays/%` → 500 InternalError。`decodeURIComponent()` が投げる
-   `URIError` が `JapanCalendarError` でも `BadRequestError` でもないため
-   汎用catchに落ちている。クライアント起因の誤りをサーバ障害として報告している。
-   → `decodeURIComponent` を try/catch で包んで 400 にする
+`worker/index.ts` を実際に起動して敵対的入力を投げて見つかった4件。
+修正後、同じ入力で再確認済み（`npm run typecheck` / `npx vitest run` 154件 /
+`npm run test:tz` 4環境 / `npm run build` すべて green）。詳細は CHANGELOG.md
+の Fixed 節。
 
-2. **[中] 暫定年の「祝日ではない」応答が30日 immutable キャッシュされる**
-   ```
-   2030-09-23  秋分の日 confirmed:false  → max-age=3600            正しい
-   2030-09-22  holiday: null            → max-age=2592000, immutable  誤り
-   ```
-   `handleHolidays` の `holiday === null || holiday.confirmed ? 'long' : 'short'`
-   が、null のときに確定/暫定の判定を素通りしている。同じ不確実性の裏表なのに
-   肯定応答は1時間・否定応答は30日 immutable という真逆の扱いになっている。
-   年ルート側は `allConfirmed` で正しく判定しているので、単日ルートも揃える。
-
-3. **[低] HEAD が 405**
-   `curl -I` やヘルスチェック・CDN の疎通確認が失敗する。GET と同じ扱いにする。
-
-4. **[低] 数値パラメータの解釈が緩い**
-   `days=0x10` が16、`days=1e3` が1000、前後空白も許容。`Number()` の素の挙動。
-   `/^-?\d+$/` で受ける方が意図が明確。
+1. 不正なURLエスケープ（`GET /v1/holidays/%`）→ 500 だったのを 400 に修正
+2. 暫定年の「祝日ではない」応答が30日 immutable キャッシュされていたのを、
+   年ルートと同じ `allConfirmed` 判定に揃えて修正
+3. HEAD が 405 だったのを GET と同じ扱いに修正
+4. `days=0x10` / `1e3` / 空白混じりを受け付けていたのを `/^-?\d+$/` で拒否するよう修正
 
 ## 保留中の判断（人間が決める）
 
@@ -70,7 +59,7 @@ npm 公開の直前。ライブラリ・営業日API・和暦・Cloudflare Worke
 | `src/businessDays.ts` | レビュー済み。変異テスト5種すべて検出を確認 |
 | CI / ワークフロー | レビュー済み |
 | パッケージング（型解決） | レビュー済み。`@arethetypeswrong/cli` 4項目green |
-| `worker/index.ts` | **レビュー済み。上記4件が未修正** |
+| `worker/index.ts` | レビュー済み。検出4件は修正・再検証済み。専用の自動テストはまだない（`wrangler dev` + curl の手動検証のみ） |
 
 ## 運用メモ
 

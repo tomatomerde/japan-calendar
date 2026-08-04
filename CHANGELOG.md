@@ -71,3 +71,26 @@ Not yet published to npm.
   `tsconfig.cjs.json` previously set `declaration: false` and emitted no
   types for `dist/cjs` at all, so the single shared `types` entry silently
   pointed everyone at the ESM ones.
+
+### Fixed
+
+- `worker/index.ts`, found by driving `wrangler dev` with adversarial input
+  rather than by reading the code:
+  - A malformed URL escape in the single-date holiday route (e.g.
+    `GET /v1/holidays/%`) threw an uncaught `URIError` from
+    `decodeURIComponent`, which fell through to the generic 500 handler --
+    a client mistake reported as a server failure. Now caught and turned
+    into a 400.
+  - The single-date route's cache tier used `holiday === null || holiday.confirmed`,
+    which gave every "not a holiday" answer a 30-day immutable cache
+    regardless of whether that year's equinox-derived holidays are still
+    tentative. It now uses the same `allConfirmed`-for-the-year check the
+    year-listing route already used, so a `null` answer in a year with an
+    unconfirmed equinox gets the same short cache as a `confirmed: false`
+    answer in that year.
+  - `HEAD` requests got a 405, breaking `curl -I`, health checks, and CDN
+    probes. `HEAD` is now handled like `GET` with the body stripped from
+    the response.
+  - `parseInteger` accepted anything `Number()` accepts, including hex
+    (`0x10`), exponential notation (`1e3`), and whitespace-padded values.
+    It now requires `/^-?\d+$/` before conversion.

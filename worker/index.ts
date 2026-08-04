@@ -17,13 +17,8 @@
 import { toIsoDate, type CivilDate } from '../src/civil.js';
 import { OFFICIAL_META } from '../src/data/official.js';
 import { JapanCalendarError } from '../src/errors.js';
-import {
-  MAX_SUPPORTED_YEAR,
-  MIN_SUPPORTED_YEAR,
-  assertYearInRange,
-  holidaysForYear,
-  isHoliday,
-} from '../src/holidays.js';
+import { MAX_SUPPORTED_YEAR, MIN_SUPPORTED_YEAR, assertYearInRange, holidaysForYear } from '../src/holidays.js';
+import { toCivilDate } from '../src/input.js';
 import { addBusinessDays, businessDaysBetween, type CalendarKind } from '../src/businessDays.js';
 import { formatWareki, fromWareki, toWareki, WAREKI_SUPPORTED_FROM, type EraInput } from '../src/wareki.js';
 import type { Holiday } from '../src/types.js';
@@ -91,12 +86,13 @@ function parseCalendar(searchParams: URLSearchParams): CalendarKind {
   return raw;
 }
 
+const INTEGER = /^-?\d+$/;
+
 function parseInteger(raw: string, name: string): number {
-  const value = Number(raw);
-  if (!Number.isInteger(value)) {
+  if (!INTEGER.test(raw)) {
     throw new BadRequestError(`${name} must be an integer: ${raw}`);
   }
-  return value;
+  return Number(raw);
 }
 
 function parseEraYear(raw: string): number | '元' {
@@ -115,9 +111,16 @@ function handleHolidays(param: string): Response {
     return jsonResponse({ year, holidays }, 200, allConfirmed ? 'long' : 'short');
   }
 
-  const holiday = isHoliday(param);
-  const cache: CacheTier = holiday === null || holiday.confirmed ? 'long' : 'short';
-  return jsonResponse({ date: param, holiday: holiday ? serializeHoliday(holiday) : null }, 200, cache);
+  const date = toCivilDate(param);
+  assertYearInRange(date.year);
+  const holidays = holidaysForYear(date.year);
+  const allConfirmed = holidays.every((h) => h.confirmed);
+  const holiday = holidays.find((h) => h.date.month === date.month && h.date.day === date.day) ?? null;
+  return jsonResponse(
+    { date: param, holiday: holiday ? serializeHoliday(holiday) : null },
+    200,
+    allConfirmed ? 'long' : 'short',
+  );
 }
 
 function handleBusinessDaysAdd(searchParams: URLSearchParams): Response {
@@ -204,7 +207,15 @@ function route(request: Request): Response {
   if (pathname === '/v1/meta') return handleMeta();
 
   const holidaysMatch = /^\/v1\/holidays\/([^/]+)$/.exec(pathname);
-  if (holidaysMatch !== null) return handleHolidays(decodeURIComponent(holidaysMatch[1] as string));
+  if (holidaysMatch !== null) {
+    let param: string;
+    try {
+      param = decodeURIComponent(holidaysMatch[1] as string);
+    } catch {
+      throw new BadRequestError(`Malformed URL escape sequence in path: ${holidaysMatch[1]}`);
+    }
+    return handleHolidays(param);
+  }
 
   if (pathname === '/v1/business-days/add') return handleBusinessDaysAdd(searchParams);
   if (pathname === '/v1/business-days/between') return handleBusinessDaysBetween(searchParams);
@@ -219,12 +230,14 @@ export default {
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
-    if (request.method !== 'GET') {
-      return errorResponse(405, 'MethodNotAllowed', `${request.method} is not allowed. Only GET is supported.`);
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      return errorResponse(405, 'MethodNotAllowed', `${request.method} is not allowed. Only GET and HEAD are supported.`);
     }
 
     try {
-      return route(request);
+      const response = route(request);
+      // HEAD must mirror GET's status/headers with no body (RFC 9110 9.3.2).
+      return request.method === 'HEAD' ? new Response(null, { status: response.status, headers: response.headers }) : response;
     } catch (error) {
       if (error instanceof JapanCalendarError || error instanceof BadRequestError) {
         return errorResponse(400, error.constructor.name, error.message);
