@@ -16,9 +16,14 @@
     "cloudflare-workers"
   ],
   "license": "MIT",
+  "author": "tomatomerde",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tomatomerde/japan-calendar.git"
+  },
+  "homepage": "https://github.com/tomatomerde/japan-calendar#readme",
+  "bugs": {
+    "url": "https://github.com/tomatomerde/japan-calendar/issues"
   },
   "type": "module",
   "sideEffects": false,

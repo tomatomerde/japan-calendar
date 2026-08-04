@@ -369,6 +369,17 @@ GitHub の Topics は設定済み（API で確認済み: japan, japanese,
 japanese-holidays, japanese-calendar, holiday, holidays, business-days,
 wareki, calendar, jpx, cloudflare-workers, typescript の12件）。
 
+## 人間の操作待ち（追加）
+
+- **GitHub Actions の `actions/checkout@v4` / `actions/setup-node@v4` を v5 へ**
+  実行ログに「これらは Node 20 を対象にしているが Node 24 で強制実行されている」
+  という非推奨警告が出る。GitHub が Node 20 ランタイムを完全撤去した時点で
+  ワークフローが壊れる。**このセッションのプロキシは `actions/checkout` 等の
+  公開リポジトリへのAPIアクセスも403にするため、v5が実在するか確認できず、
+  推測でバージョンを上げるのは避けた。** 手元の環境から最新のメジャー版を
+  確認して上げてほしい（`.github/workflows/ci.yml` に9箇所、
+  `update-holidays.yml` に2箇所）
+
 ## レビュー状況
 
 | 領域 | 状態 |
