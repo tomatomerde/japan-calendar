@@ -321,6 +321,27 @@ Worker自身の `BadRequestError` にもリテラルを設定。実際の
 3. CI に `concurrency` を追加。PR では古い実行を打ち切り、main では
    打ち切らない（mainでのキャンセルは履歴上「失敗」に見えるため）
 
+## 解決済み（第12回レビュー: ワークフローが失敗を握り潰していた）
+
+`update-holidays.yml` の `node scripts/fetch-syukujitsu.ts | tee /tmp/report.txt`
+がパイプになっており、GitHub Actions の暗黙シェル `bash -e {0}`（pipefail 無し）
+では**パイプ末尾の `tee` の終了コードしか見ない**。つまり fetch スクリプトが
+throw しても、ステップは成功として扱われていた。
+
+影響: `assertSane` の行数・年範囲チェック、`findAnomalies`、そして今日追加した
+`assertNoRegression` まで、**すべての健全性チェックが無効化される**経路だった。
+ワークフローは green のまま何もせず、データ更新が静かに止まり続ける。
+
+実測（今日追加した退行ガードを実際に踏ませて確認）:
+```
+bash -e            + パイプ  -> 終了コード 0  （失敗が消える）
+bash -eo pipefail  + パイプ  -> 終了コード 1  （正しく伝わる）
+```
+
+→ 両ワークフローに `defaults: run: shell: bash` を追加。
+`shell: bash` を明示すると GitHub は `bash --noprofile --norc -eo pipefail {0}`
+を使うため pipefail が有効になる。
+
 ## 保留中の判断（人間が決める）
 
 - **リポジトリを public にするか / npm に公開するか**

@@ -30,6 +30,16 @@ concurrency:
   group: update-holiday-data
   cancel-in-progress: false
 
+# GitHub's implicit shell for `run` on Linux is `bash -e {0}` -- which has
+# no `pipefail`, so in `a | b` only b's exit status counts. That silently
+# discarded the fetch script's exit code below, meaning every sanity check
+# it performs (row counts, anomalies, the shrink guard) could fail while
+# this workflow reported success and quietly did nothing. Naming the shell
+# explicitly opts into `-eo pipefail`.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   update:
     runs-on: ubuntu-latest
