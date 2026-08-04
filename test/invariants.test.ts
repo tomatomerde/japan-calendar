@@ -18,6 +18,7 @@ import {
   MIN_SUPPORTED_YEAR,
 } from '../src/holidays.ts';
 import { OFFICIAL_HOLIDAYS, OFFICIAL_META } from '../src/data/official.ts';
+import { computeBridgeHolidays, computeSubstituteHolidays } from '../src/rules/observed.ts';
 import type { Holiday } from '../src/types.ts';
 
 describe('invariants across the full supported range', () => {
@@ -120,5 +121,42 @@ describe('公開する値は凍結されている（共有キャッシュを利�
   it('生成データ（OFFICIAL_HOLIDAYS / OFFICIAL_META）も凍結されている', () => {
     expect(Object.isFrozen(OFFICIAL_HOLIDAYS)).toBe(true);
     expect(Object.isFrozen(OFFICIAL_META)).toBe(true);
+  });
+});
+
+describe('年をまたぐ導出は現時点で発生しない（防御的コードの必要性を監視する）', () => {
+  // holidaysForYear は振替休日・国民の休日を導出する際、前後年の法定祝日も
+  // 材料に入れている。「年境界をまたぐ連鎖は実際には起きないが、単年に
+  // 閉じていると仮定しないため」という防御的な作りで、その前後年ぶんを
+  // 取り除いても現状はどのテストも落ちない = 通常の方法では守れない。
+  //
+  // そこで「防御が現時点では不要である」こと自体を固定する。将来の法改正や
+  // ルール変更で年をまたぐ導出が発生するようになると、このテストが落ちて
+  // 「あの防御コードがいま効き始めた」と気づける。
+  it('当年の法定祝日だけから導出しても、前後年を含めた結果と一致する', () => {
+    const mismatches: string[] = [];
+    for (let year = MIN_SUPPORTED_YEAR; year <= MAX_SUPPORTED_YEAR; year += 1) {
+      const singleYear = statutoryHolidaysForYear(year).map((h) => ({
+        date: h.date,
+        confirmed: h.confirmed,
+      }));
+      const substitutes = computeSubstituteHolidays(singleYear);
+      const derivedFromSingleYear = [...substitutes, ...computeBridgeHolidays(singleYear, substitutes)]
+        .filter((h) => h.date.year === year)
+        .map((h) => `${toIsoDate(h.date)} ${h.name} ${h.category} ${h.confirmed}`)
+        .sort();
+
+      const derivedFromFullEngine = holidaysForYear(year)
+        .filter((h) => h.category !== 'statutory')
+        .map((h) => `${toIsoDate(h.date)} ${h.name} ${h.category} ${h.confirmed}`)
+        .sort();
+
+      if (JSON.stringify(derivedFromSingleYear) !== JSON.stringify(derivedFromFullEngine)) {
+        mismatches.push(
+          `${year}: 単年=${JSON.stringify(derivedFromSingleYear)} 前後年込み=${JSON.stringify(derivedFromFullEngine)}`,
+        );
+      }
+    }
+    expect(mismatches).toEqual([]);
   });
 });
