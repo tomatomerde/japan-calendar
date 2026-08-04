@@ -28,7 +28,7 @@ class BadRequestError extends Error {}
 
 const CORS_HEADERS = {
   'access-control-allow-origin': '*',
-  'access-control-allow-methods': 'GET, OPTIONS',
+  'access-control-allow-methods': 'GET, HEAD, OPTIONS',
 };
 
 type CacheTier = 'long' | 'short' | 'none';
@@ -41,19 +41,25 @@ const CACHE_CONTROL: Record<CacheTier, string> = {
   none: 'no-store',
 };
 
-function jsonResponse(data: unknown, status = 200, cache: CacheTier = 'short'): Response {
+function jsonResponse(
+  data: unknown,
+  status = 200,
+  cache: CacheTier = 'short',
+  extraHeaders?: Record<string, string>,
+): Response {
   return new Response(JSON.stringify(data, null, 2), {
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': CACHE_CONTROL[cache],
       ...CORS_HEADERS,
+      ...extraHeaders,
     },
   });
 }
 
-function errorResponse(status: number, type: string, message: string): Response {
-  return jsonResponse({ error: { type, message } }, status, 'none');
+function errorResponse(status: number, type: string, message: string, extraHeaders?: Record<string, string>): Response {
+  return jsonResponse({ error: { type, message } }, status, 'none', extraHeaders);
 }
 
 function serializeHoliday(holiday: Holiday): {
@@ -231,7 +237,10 @@ export default {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
     if (request.method !== 'GET' && request.method !== 'HEAD') {
-      return errorResponse(405, 'MethodNotAllowed', `${request.method} is not allowed. Only GET and HEAD are supported.`);
+      // RFC 9110 §15.5.6 requires a 405 response to include Allow.
+      return errorResponse(405, 'MethodNotAllowed', `${request.method} is not allowed. Only GET and HEAD are supported.`, {
+        allow: 'GET, HEAD',
+      });
     }
 
     try {

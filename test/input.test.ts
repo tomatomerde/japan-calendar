@@ -30,6 +30,22 @@ describe('toCivilDate — 暦日入力', () => {
     // @ts-expect-error 想定外の型
     expect(() => toCivilDate(20260922)).toThrow(InvalidDateInputError);
   });
+
+  it('オフセットのない日時文字列を弾く（ホストのローカルタイムゾーンに依存させないため）', () => {
+    // Date.parse に素通しすると、この形式はホストのローカルタイムゾーンで
+    // 解釈されてしまう。過去に実際に「東京では国民の休日、Kiritimatiでは
+    // 敬老の日」という TZ 依存の不具合を起こした形式そのもの。
+    expect(() => toCivilDate('2026-09-22T00:00:00')).toThrow(InvalidDateInputError);
+    expect(() => toCivilDate('2026-09-22 00:00:00')).toThrow(InvalidDateInputError);
+  });
+
+  it('ゼロ埋めされていない・非ISO形式の日付文字列を弾く', () => {
+    // CALENDAR_DATE は YYYY-MM-DD の厳密な形しか受理しない。ゆるい形式は
+    // Date.parse に流れず、ここで明示的に拒否される。
+    expect(() => toCivilDate('2026-9-22')).toThrow(InvalidDateInputError);
+    expect(() => toCivilDate('2026/09/22')).toThrow(InvalidDateInputError);
+    expect(() => toCivilDate('2026')).toThrow(InvalidDateInputError);
+  });
 });
 
 describe('toCivilDate — 瞬間は JST で日付に落とす', () => {

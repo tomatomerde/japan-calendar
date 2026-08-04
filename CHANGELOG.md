@@ -94,3 +94,31 @@ Not yet published to npm.
   - `parseInteger` accepted anything `Number()` accepts, including hex
     (`0x10`), exponential notation (`1e3`), and whitespace-padded values.
     It now requires `/^-?\d+$/` before conversion.
+  - A 405 response didn't include an `Allow` header (required by RFC 9110
+    §15.5.6). Now sends `Allow: GET, HEAD`.
+  - CORS preflight advertised `GET, OPTIONS` even after `HEAD` support was
+    added, so a browser sending a `HEAD` request through CORS would still
+    be blocked at the preflight. Now advertises `GET, HEAD, OPTIONS`.
+  - Added `test/worker.test.ts` (24 cases), the Worker's first automated
+    test suite -- everything above had only ever been checked by hand with
+    `wrangler dev` and curl. It calls the exported `fetch` handler directly
+    (no `wrangler dev` needed) and was confirmed to actually catch
+    regressions by mutation-testing three of the fixes above (dropping the
+    `Allow` header, reverting the single-date cache-tier logic, and
+    removing the URL-escape try/catch each fail a specific test).
+- `src/input.ts`: `toCivilDate` accepted an ISO 8601 date-time string with
+  no UTC/timezone offset (e.g. `2019-05-01T00:00:00`) and resolved it with
+  `Date.parse`, which interprets an offset-less date-time in the *host's*
+  local timezone. This directly violated the module's own contract ("all
+  timezone handling is centralized here... always via JST") and, unlike
+  everything else in this project, wasn't caught by the four-timezone test
+  matrix, because every existing test case happened to use an explicit
+  offset (`Z` or `+09:00`/`-05:00`). Reproduced concretely:
+  `isHoliday('2026-09-22T00:00:00')` returned 国民の休日 (National Holiday)
+  under `TZ=Asia/Tokyo` but 敬老の日 (Respect for the Aged Day) under
+  `TZ=Pacific/Kiritimati` -- the same input, two different holiday names,
+  depending only on where the process happened to run. Fixed by requiring
+  an explicit offset (`Z` or `±HH:MM`) before falling back to `Date.parse`;
+  an offset-less date-time (or any other string `Date.parse` would
+  otherwise guess at, e.g. `2026/09/22` or a bare `2026`) is now rejected
+  with `InvalidDateInputError` instead of silently depending on the host.
