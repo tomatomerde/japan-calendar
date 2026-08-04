@@ -108,9 +108,24 @@ describe('GET /v1/business-days/add', () => {
 });
 
 describe('GET /v1/business-days/between', () => {
-  it('正常系', async () => {
+  it('正しい営業日数を返す', async () => {
     const res = get('/v1/business-days/between?from=2026-01-01&to=2026-02-01');
     expect(res.status).toBe(200);
+    const body = (await res.json()) as { businessDays: number };
+    // src/businessDays.ts の businessDaysBetween を直接呼んだ結果と突き合わせる。
+    expect(body.businessDays).toBe(20);
+  });
+
+  it('calendar パラメータが実際にライブラリへ渡っている（national/bank で結果が変わる）', async () => {
+    // 2026-12-25〜2027-01-05 は年末年始(1/2, 1/3)を挟むため、
+    // calendar が握りつぶされて常に 'national' 扱いになっていると
+    // このテストは検出できず両方 6 になる。
+    const national = get('/v1/business-days/between?from=2026-12-25&to=2027-01-05&calendar=national');
+    const bank = get('/v1/business-days/between?from=2026-12-25&to=2027-01-05&calendar=bank');
+    const nationalBody = (await national.json()) as { businessDays: number };
+    const bankBody = (await bank.json()) as { businessDays: number };
+    expect(nationalBody.businessDays).toBe(6);
+    expect(bankBody.businessDays).toBe(5);
   });
 });
 
@@ -141,6 +156,25 @@ describe('GET /v1/wareki/reverse', () => {
 describe('未知のルート', () => {
   it('404 を返す', async () => {
     expect(get('/nope').status).toBe(404);
+  });
+});
+
+describe('GET / — インデックス', () => {
+  it('ルート一覧を返す', async () => {
+    const res = get('/');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { name: string; routes: string[] };
+    expect(body.name).toBe('japan-calendar');
+    expect(body.routes).toContain('GET /v1/meta');
+  });
+});
+
+describe('CORS', () => {
+  it('すべてのオリジンからのアクセスを許可する', async () => {
+    // ワイルドカードから固定オリジンへ変わる/消えるといった変更を検出する。
+    expect(get('/v1/meta').headers.get('access-control-allow-origin')).toBe('*');
+    expect(request('/v1/meta', 'OPTIONS').headers.get('access-control-allow-origin')).toBe('*');
+    expect(get('/nope').headers.get('access-control-allow-origin')).toBe('*');
   });
 });
 

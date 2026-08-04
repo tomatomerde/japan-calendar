@@ -122,3 +122,15 @@ Not yet published to npm.
   an offset-less date-time (or any other string `Date.parse` would
   otherwise guess at, e.g. `2026/09/22` or a bare `2026`) is now rejected
   with `InvalidDateInputError` instead of silently depending on the host.
+- `test/worker.test.ts`: mutation-testing the suite itself (11 mutations)
+  found 4 that passed through undetected, all gaps in what was asserted
+  rather than missing routes:
+  - `business-days/between`'s test only checked `status: 200`, never the
+    returned business-day count.
+  - No test passed different `calendar` values to `between` and checked
+    the result actually differed, so the parameter could be silently
+    dropped without a failure.
+  - No test checked the CORS `access-control-allow-origin` header.
+  - No test covered the `GET /` index route.
+  All four now have assertions and were confirmed to catch the
+  corresponding mutation.

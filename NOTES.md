@@ -53,6 +53,25 @@ CHANGELOG.md の Fixed 節。
    （Allow ヘッダー削除／キャッシュ判定を旧ロジックに戻す／URLエスケープの
    try-catch を外す、の3パターン）。
 
+## 解決済み（Worker専用レビュー第2回、opusで検出した自テストの盲点4件）
+
+`test/worker.test.ts` 自体を11種のミューテーションにかけたところ、4件が
+未検出のまま素通りした。原因と対応:
+
+1. `businessDaysBetween` の正常系テストが `status: 200` しか見ておらず、
+   戻り値の営業日数を一度も検証していなかった → 既知の期待値と突き合わせる
+   アサーションを追加
+2. `calendar` パラメータがライブラリへ実際に渡っているかのテストが無く、
+   `'national'` に固定してもテストが気づかなかった → 年末年始を挟む期間で
+   national/bank の結果が食い違うことを検証するケースを追加
+3. CORS の `access-control-allow-origin` を検証するテストが1件も無かった
+   → `*` を返すことを検証するテストを追加
+4. `GET /`（インデックスルート）を検証するテストが1件も無かった
+   → ルート一覧を返すことを検証するテストを追加
+
+4件とも実際にミューテーションして検出できることを確認済み（`test/worker.test.ts`
+は 24件 → 27件）。
+
 ## 保留中の判断（人間が決める）
 
 - **リポジトリを public にするか / npm に公開するか**
@@ -60,21 +79,25 @@ CHANGELOG.md の Fixed 節。
   リンクが誰からも 404 になり、NOTICE の CC BY 表示先も辿れず、利用者は
   Issue も出せない。公開するなら先に repository を public にする必要がある。
 - npm 公開するならバージョンを決める（現在 `0.0.0`）
+- **「Allow GitHub Actions to create and approve pull requests」設定**
+  一時保留中。オフだと `update-holidays.yml` の PR 作成ステップが失敗する
+  （push とデータ検証自体はその前に成功済みなので実害はジョブが赤くなる
+  ことだけ）。このセッションのプロキシは `/actions/` 配下を読み取りも
+  含めて403にするため、現在オンかオフかは確認できていない。ワークフロー
+  実行履歴は1回のみで、それは `target: main` のブートストラップ実行
+  （PR作成ステップを通らない経路）だったため、履歴からも判断不可。
+  オンにする操作自体は Settings → Actions → General → Workflow
+  permissions → 「Allow GitHub Actions to create and approve pull
+  requests」から人間の手動操作が必要。
 
 ## 人間の操作待ち
 
-このセッションのプロキシからは GitHub のリポジトリ設定を読み書きできないため、
-以下は手動で確認・設定が必要:
+- 上記「Allow GitHub Actions to create and approve pull requests」
+  （プロキシから読み書き不可のため、確認・設定ともに人間の操作が必要）
 
-- **「Allow GitHub Actions to create and approve pull requests」設定**
-  オフだと `update-holidays.yml` の PR 作成ステップが毎回失敗する。
-  push とデータ検証自体は先に済むので実害は小さいが、ジョブは赤くなる。
-- **GitHub の About（description / topics）**
-  description は設定済み。topics は未設定。設定するなら:
-  ```
-  japan japanese japanese-holidays japanese-calendar holiday holidays
-  business-days wareki calendar jpx cloudflare-workers typescript
-  ```
+GitHub の Topics は設定済み（API で確認済み: japan, japanese,
+japanese-holidays, japanese-calendar, holiday, holidays, business-days,
+wareki, calendar, jpx, cloudflare-workers, typescript の12件）。
 
 ## レビュー状況
 
