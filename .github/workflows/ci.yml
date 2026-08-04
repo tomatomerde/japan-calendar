@@ -8,6 +8,12 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  # Supersede in-flight runs for the same PR, but never cancel one on
+  # main -- a cancelled run there reads as a failure in the history.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   typecheck:
     runs-on: ubuntu-latest
@@ -55,3 +61,52 @@ jobs:
       - run: npm test
         env:
           TZ: ${{ matrix.timezone }}
+
+  # package.json declares engines.node ">=20", but every job above runs on
+  # 22, so that claim was never actually exercised. This installs the
+  # packed tarball on Node 20 exactly as a consumer would. It deliberately
+  # does not run `npm ci`: the dev toolchain needs Node 22 (wrangler
+  # declares >=22, and the scripts rely on native type stripping), while
+  # the published package has zero dependencies and must work on 20.
+  consume-on-node20:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Pack the publishable tarball
+        run: npm pack --pack-destination /tmp/pkg
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install the tarball and use it from both CJS and ESM
+        run: |
+          set -eux
+          node --version
+          mkdir /tmp/consumer && cd /tmp/consumer
+          npm init -y >/dev/null
+          npm install /tmp/pkg/*.tgz
+
+          cat > cjs.cjs <<'EOF'
+          const jc = require('japan-calendar');
+          const holiday = jc.isHoliday('2026-09-22');
+          if (holiday?.name !== '国民の休日') throw new Error(`CJS isHoliday: ${JSON.stringify(holiday)}`);
+          if (jc.businessDaysBetween('2026-01-01', '2026-02-01') !== 20) throw new Error('CJS businessDaysBetween');
+          if (jc.formatWareki(jc.toWareki('1989-01-08')) !== '平成元年1月8日') throw new Error('CJS formatWareki');
+          console.log('CJS ok');
+          EOF
+          node cjs.cjs
+
+          cat > esm.mjs <<'EOF'
+          import { isHoliday, businessDaysBetween, toWareki, formatWareki } from 'japan-calendar';
+          if (isHoliday('2026-09-22')?.name !== '国民の休日') throw new Error('ESM isHoliday');
+          if (businessDaysBetween('2026-01-01', '2026-02-01') !== 20) throw new Error('ESM businessDaysBetween');
+          if (formatWareki(toWareki('1989-01-08')) !== '平成元年1月8日') throw new Error('ESM formatWareki');
+          console.log('ESM ok');
+          EOF
+          node esm.mjs

@@ -10,9 +10,17 @@ npm run typecheck   # type-checks the library, scripts, and the Worker
 npm test            # runs the full test suite
 ```
 
-Node 20+ is required. Scripts and tests run directly against `.ts` files
-using Node's built-in type stripping — no build step is needed for
-development.
+**Node 22+ is required for development**, for two reasons: the scripts in
+`scripts/` run directly against `.ts` files using Node's built-in type
+stripping, which doesn't exist before 22.6, and `wrangler` declares
+`node >= 22`. No build step is needed for development either way.
+
+Note that this is a stricter requirement than the *published package*'s
+`engines.node: ">=20"`. That field is about consumers, and it holds: the
+build targets ES2022 and the emitted code touches nothing newer than
+`Object.freeze`, `Number.isInteger`, and `Math.trunc`, with no `node:`
+imports at all. CI verifies it by installing the packed tarball on Node
+20 and importing it through both `require()` and `import`.
 
 For current work-in-progress state — what's been reviewed, what's still
 open, and what's waiting on a manual step — see [NOTES.md](./NOTES.md).

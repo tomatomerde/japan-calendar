@@ -296,6 +296,31 @@ Worker自身の `BadRequestError` にもリテラルを設定。実際の
 「片方の分点しか無い年」（両方必須ルールが存在する理由そのもの）と、
 うるう年の100年・400年ルールも含む。変異6種すべて検出を確認済み。
 
+## 解決済み（第11回レビュー: `engines.node` の主張が未検証、CONTRIBUTINGの記載が誤り）
+
+1. **CONTRIBUTING が「Node 20+ で開発できる」と書いていたが誤り。**
+   `scripts/*.ts` の直接実行はNodeのネイティブ型ストリッピング（22.6以降）に
+   依存し、wrangler も `node >= 22` を要求する。Node 20 では
+   `npm run report` / `npm run fetch:holidays` が動かない。
+   → 「開発は Node 22+」「公開パッケージの `engines` は >=20（利用者向け）」
+   と両者を分けて記載するよう修正
+
+2. **`engines.node: ">=20"` がCIで一度も検証されていなかった**（全ジョブが
+   Node 22）。成果物が使っている組み込みAPIを調べたところ
+   `Date.parse` / `Math.abs,floor,trunc` / `Number.isFinite,isInteger,isNaN` /
+   `JSON.stringify` / `Object.freeze` のみ、`node:` importもゼロ、target=ES2022
+   なので主張自体は正しい。ただし未検証のままなのは公開前として不適切。
+   → CI に `consume-on-node20` ジョブを追加。Node 22 でビルド＆pack →
+   Node 20 に切り替えて tarball を `npm install` し、CJS `require()` と
+   ESM `import` の両方から実際に呼ぶ。`npm ci` はあえて実行しない
+   （開発ツールチェーンは22必須だが、公開パッケージは依存ゼロで20で動くべき、
+   という区別をジョブ構成自体で表現している）。
+   **同じ手順をローカルで完全再現して CJS/ESM とも通ることを確認済み**
+   （Node 20 そのものだけは環境に無いため未実行）
+
+3. CI に `concurrency` を追加。PR では古い実行を打ち切り、main では
+   打ち切らない（mainでのキャンセルは履歴上「失敗」に見えるため）
+
 ## 保留中の判断（人間が決める）
 
 - **リポジトリを public にするか / npm に公開するか**
