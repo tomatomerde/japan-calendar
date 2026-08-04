@@ -1,7 +1,7 @@
 /**
  * japan-calendar — 日本の祝日・営業日・和暦を扱う依存ゼロのライブラリ。
  *
- * 現在は和暦変換と日付基盤のみ公開している。祝日・営業日のAPIは実装中。
+ * 営業日API（isBusinessDay / addBusinessDays / businessDaysBetween）は実装中。
  */
 
 export {
@@ -49,3 +49,12 @@ export {
 
 export { OFFICIAL_META } from './data/official.js';
 export type { OfficialHolidayRow, OfficialMeta } from './data/official-types.js';
+
+export {
+  MAX_SUPPORTED_YEAR,
+  MIN_SUPPORTED_YEAR,
+  holidaysForYear,
+  isHoliday,
+  statutoryHolidaysForYear,
+} from './holidays.js';
+export type { Holiday, HolidayCategory } from './types.js';
