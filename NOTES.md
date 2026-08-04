@@ -72,6 +72,29 @@ CHANGELOG.md の Fixed 節。
 4件とも実際にミューテーションして検出できることを確認済み（`test/worker.test.ts`
 は 24件 → 27件）。
 
+## 解決済み（Worker専用レビュー第3回、opusで検出した構造的な盲点8件 + 持ち越しのTZ掃引テスト）
+
+前回の4件修正後、新たな10種のミューテーションのうち8件が素通りした。全部が
+同根の問題（ステータスコードは丁寧に見るがボディ・ヘッダーは指摘箇所しか
+見ていない）だったため、個別対応ではなく全ルート共通の契約チェッカーを導入:
+
+- `expectJsonSuccess(res, cache)`: 成功応答すべてに対し content-type / CORS
+  / 期待するキャッシュ階層を一律検証
+- `expectJsonError(res, status)`: エラー応答すべてに対し `{error:{type,
+  message}}` エンベロープ形状 / content-type / CORS / `no-store` を一律検証
+
+既存の全テストをこのヘルパー経由に置き換え、`/v1/holidays/:date` の
+`date`/`category` フィールドの検証も追加。8件のミューテーション
+（エラー応答のキャッシュ化・エンベロープ形状変更・content-type破壊・
+wareki/metaのキャッシュ階層退行・date/categoryフィールド破壊）すべて
+再実行して検出を確認済み。
+
+あわせて、前々回から持ち越しだった「TZ非依存性そのものの掃引テスト」を
+`test/input.test.ts` に追加。日付6種×オフセット8種の直積を、実装
+(civil.ts の整数演算)とは別経路（`Date.UTC`/`getUTC*` + 自前のオフセット
+パース）で計算した期待値と突き合わせる。オフセット必須チェックを無効化
+すると全TZで検出することを確認済み。
+
 ## 保留中の判断（人間が決める）
 
 - **リポジトリを public にするか / npm に公開するか**
@@ -109,8 +132,8 @@ wareki, calendar, jpx, cloudflare-workers, typescript の12件）。
 | `src/businessDays.ts` | レビュー済み。変異テスト5種すべて検出を確認 |
 | CI / ワークフロー | レビュー済み |
 | パッケージング（型解決） | レビュー済み。`@arethetypeswrong/cli` 4項目green |
-| `worker/index.ts` | レビュー済み。検出9件は修正・再検証済み。`test/worker.test.ts` で自動テスト化済み |
-| `src/input.ts`（文字列フォールバック） | レビュー済み。TZ混入を修正、回帰テスト追加済み |
+| `worker/index.ts` | レビュー済み。検出9+8件は修正・再検証済み。契約チェッカーで全ルート共通検証済み |
+| `src/input.ts`（文字列フォールバック） | レビュー済み。TZ混入を修正、掃引テストで網羅的に回帰防止済み |
 
 ## 運用メモ
 

@@ -103,6 +103,54 @@ describe('toCivilDate — 瞬間は JST で日付に落とす', () => {
   });
 });
 
+describe('toCivilDate — 文字列入力の掃引（TZ非依存性そのものの網羅チェック）', () => {
+  // 個別の文字列を1件ずつ手で書くのではなく、日付×オフセットの直積を
+  // 総当りする。期待値は実装(civil.ts の整数演算)を一切経由せず、
+  // Date.UTC / getUTC* とオフセットの自前パースだけで独立に計算する
+  // ---「文字列入力はTZ非依存であるべき」という性質そのものを検証する。
+  function parseOffsetMinutes(offset: string): number {
+    if (offset === 'Z') return 0;
+    const m = /^([+-])(\d{2}):?(\d{2})$/.exec(offset);
+    if (m === null) throw new Error(`unsupported offset in test fixture: ${offset}`);
+    const sign = m[1] === '-' ? -1 : 1;
+    return sign * (Number(m[2]) * 60 + Number(m[3]));
+  }
+
+  function expectedJstCivilDate(
+    dateStr: string,
+    timeStr: string,
+    offset: string,
+  ): { year: number; month: number; day: number } {
+    const [y, mo, d] = dateStr.split('-').map(Number);
+    const [h, mi, s] = timeStr.split(':').map(Number);
+    const offsetMinutes = parseOffsetMinutes(offset);
+    const utcMs = Date.UTC(y as number, (mo as number) - 1, d, h, mi, s) - offsetMinutes * 60_000;
+    const jst = new Date(utcMs + 9 * 60 * 60_000);
+    return { year: jst.getUTCFullYear(), month: jst.getUTCMonth() + 1, day: jst.getUTCDate() };
+  }
+
+  const dates = ['2019-05-01', '2026-09-22', '1873-01-01', '2099-12-31', '2020-02-29', '1989-01-08'];
+  const offsets = ['Z', '+09:00', '-05:00', '+0900', '-0500', '+14:00', '-11:00', '+00:00'];
+
+  it('日付×オフセットの直積で、独立計算(Date.UTCベース)と一致する', () => {
+    for (const dateStr of dates) {
+      for (const offset of offsets) {
+        const input = `${dateStr}T00:00:00${offset}`;
+        const expected = expectedJstCivilDate(dateStr, '00:00:00', offset);
+        expect(toCivilDate(input), input).toEqual(expected);
+      }
+    }
+  });
+
+  it('オフセットの無い日時・ISO以外の形式は、どの日付についても一律に拒否される', () => {
+    for (const dateStr of dates) {
+      for (const input of [`${dateStr}T00:00:00`, `${dateStr} 00:00:00`, dateStr.replace(/-/g, '/')]) {
+        expect(() => toCivilDate(input), input).toThrow(InvalidDateInputError);
+      }
+    }
+  });
+});
+
 describe('プロセスのタイムゾーンに依存しない', () => {
   it('TZ 環境変数が何であっても同じ結果になる', () => {
     // このテストは CI で TZ=UTC / Asia/Tokyo / Pacific/Kiritimati / Pacific/Midway

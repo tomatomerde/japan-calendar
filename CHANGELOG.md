@@ -134,3 +134,26 @@ Not yet published to npm.
   - No test covered the `GET /` index route.
   All four now have assertions and were confirmed to catch the
   corresponding mutation.
+- `test/worker.test.ts`: a second mutation-testing pass (10 more
+  mutations) found 8 that still passed through, all sharing one root
+  cause -- the suite checked status codes carefully but only spot-checked
+  response bodies and headers. Fixed by adding `expectJsonSuccess`/
+  `expectJsonError` helpers applied to every route, so every test now
+  uniformly asserts `content-type`, CORS, and the expected cache tier on
+  success, and the `{error:{type,message}}` envelope plus `no-store` on
+  failure, instead of relying on each test to remember to check them.
+  This closed all 8 gaps: an error response silently becoming cacheable,
+  the error envelope's shape changing, `content-type` becoming
+  non-JSON, `/v1/wareki` and `/v1/meta`'s cache tiers regressing to
+  `none`, and `serializeHoliday`'s `date`/`category` fields going stale.
+  Confirmed by re-running all 8 mutations; each now fails a test.
+- `test/input.test.ts`: the TZ-contamination fix above was previously
+  guarded only by assertions on specific input strings, so the same class
+  of bug in a different string format could slip back in unnoticed. Added
+  a sweep test that checks every combination of 6 dates x 8 offset styles
+  (`Z`, `+09:00`, `-0500`, etc.) against an independently computed
+  expected value (via `Date.UTC`/`getUTC*` plus the test's own offset
+  parsing, not the implementation's `civil.ts` day-number arithmetic), plus
+  a sweep confirming offset-less and non-ISO formats are rejected across
+  the same date set. Confirmed the sweep fails (3 cases) under every
+  tested `TZ` when the offset-requirement check is disabled.
