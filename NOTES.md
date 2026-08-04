@@ -193,6 +193,46 @@ Workers では isolate を共有する後続リクエスト全部に波及する
 - キャッシュのメモリ挙動: 全151年で 0.13MB、範囲外の年は `OutOfRangeError`
   で拒否されるため無制限に増えない
 
+## 解決済み（第7回レビュー: **実バグ発見2件目** — ミニファイでエラー名が壊れる）
+
+`src/errors.ts` が `this.name = new.target.name` でクラス識別子から名前を
+導出していた。ミニファイヤは識別子を自由にリネームするので、npm利用者が
+バンドルすると壊れる。ビルド済みパッケージを `esbuild --minify` に通して実証:
+
+```
+isHoliday('notadate')   -> name=d   （InvalidDateInputError のはず）
+isHoliday('2200-01-01') -> name=u   （OutOfRangeError のはず）
+toWareki('1800-01-01')  -> name=y   （UnsupportedWarekiRangeError のはず）
+```
+
+`instanceof` は生き残るが、`name` はログに出る値であり、クラスを import
+できないコードが分岐に使う値でもある。Worker も `error.constructor.name`
+から `error.type` を作っていたので同じ問題。
+
+→ 全クラスで文字列リテラルを代入。Worker は `error.name` を使うよう変更し、
+Worker自身の `BadRequestError` にもリテラルを設定。実際の
+`esbuild --minify` バンドルと `wrangler deploy --minify` の出力の両方で
+7種すべての名前が残ることを確認済み。
+
+`test/errors.test.ts` を新規追加。**ミニファイヤを実際に走らせる**テストで、
+これがないと退行を検出できない（導出方式はミニファイするまで正しく見える）。
+`new.target.name` 方式に戻すと `['s','w','h','C','D']` になって落ちることを
+確認済み。esbuild は推移的依存に頼らず devDependency に明示追加した。
+
+### この回で「問題なし」を確認した領域
+
+- `src/businessDays.ts`: 銀行カレンダーの12/31・1/3・1/4境界、週末判定、
+  祝日判定の5変異すべて検出
+- Worker実ランタイムでのキャッシュ汚染: `wrangler dev` に汚染用ルートを
+  一時追加して確認。3種の破壊操作すべて `TypeError`、後続リクエストの
+  データも健全
+
+### 注意（既知の許容事項）
+
+`test/performance.test.ts` は `npm install` と並走させた際に1度だけ落ちた
+（CPU競合）。単独では15/15で安定し、実測比は40〜57倍に対し閾値5倍。
+データ更新ワークフローから除外済みなのはこの性質のため。
+
 ## 保留中の判断（人間が決める）
 
 - **リポジトリを public にするか / npm に公開するか**

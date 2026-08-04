@@ -24,7 +24,14 @@ import { formatWareki, fromWareki, toWareki, WAREKI_SUPPORTED_FROM, type EraInpu
 import type { Holiday } from '../src/types.js';
 
 /** A malformed request (missing/mistyped query parameters, etc.) that the library's own exceptions can't express. */
-class BadRequestError extends Error {}
+class BadRequestError extends Error {
+  constructor(message: string) {
+    super(message);
+    // A literal, not the class identifier -- see src/errors.ts. This name
+    // is what clients see in the response's `error.type`.
+    this.name = 'BadRequestError';
+  }
+}
 
 const CORS_HEADERS = {
   'access-control-allow-origin': '*',
@@ -249,7 +256,9 @@ export default {
       return request.method === 'HEAD' ? new Response(null, { status: response.status, headers: response.headers }) : response;
     } catch (error) {
       if (error instanceof JapanCalendarError || error instanceof BadRequestError) {
-        return errorResponse(400, error.constructor.name, error.message);
+        // error.name, not error.constructor.name: the latter reads the class
+        // identifier, which a minifier renames (see src/errors.ts).
+        return errorResponse(400, error.name, error.message);
       }
       // Unexpected exception. Don't leak details to the client, just log it.
       console.error(error);

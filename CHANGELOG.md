@@ -177,6 +177,31 @@ Not yet published to npm.
   Confirmed each of the 5 mutations from the review is now caught, and
   confirmed zero regressions by re-running all mutations from the first
   three review rounds (10 cases) against the rewritten suite.
+- **Error `name` no longer breaks under minification.** Every error class
+  set `this.name` from `new.target.name`, which reads the *class
+  identifier* -- something a minifier is free to rename. Bundling the
+  built package with `esbuild --minify` (what any consumer targeting a
+  browser or a serverless runtime does) produced:
+
+  ```
+  isHoliday('notadate')     -> name=d   (InvalidDateInputError)
+  isHoliday('2200-01-01')   -> name=u   (OutOfRangeError)
+  toWareki('1800-01-01')    -> name=y   (UnsupportedWarekiRangeError)
+  ```
+
+  `instanceof` kept working, but `name` is part of an Error's public
+  contract -- it's what shows up in logs and what code that can't import
+  the classes branches on. Every class now assigns a string literal.
+  `worker/index.ts` has the same fix: it derived the response's
+  `error.type` from `error.constructor.name` and now uses `error.name`,
+  and its own `BadRequestError` sets a literal too. Verified against a
+  real `esbuild --minify` bundle and against `wrangler deploy --minify`'s
+  output, where all seven type strings survive.
+  `test/errors.test.ts` guards this by running the minifier itself --
+  the plain assertions can't, since a derived name looks correct until
+  it's minified. Reverting to `new.target.name` makes it fail with
+  `['s','w','h','C','D']`.
+
 - **Memoized results are now frozen.** `holidaysForYear` and
   `statutoryHolidaysForYear` memoize per year and hand the *same* array
   instance to every caller, but nothing stopped a consumer from mutating
