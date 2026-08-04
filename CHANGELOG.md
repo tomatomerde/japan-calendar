@@ -177,6 +177,22 @@ Not yet published to npm.
   Confirmed each of the 5 mutations from the review is now caught, and
   confirmed zero regressions by re-running all mutations from the first
   three review rounds (10 cases) against the rewritten suite.
+- **`scripts/report.ts` had no tests at all**, including
+  `computeEquinoxConfirmedThrough` -- the function that decides the
+  `confirmed` boundary, and the one CONTRIBUTING singles out as
+  "computed, never hardcoded". Returning the *minimum* year instead of
+  the maximum, or dropping the requirement that a year contain *both*
+  equinoxes, changed nothing visible: the boundary only gets recomputed
+  during a data update, so a break would have surfaced a month later as a
+  silent `confirmed` regression across 70 years. `findAnomalies` -- the
+  last guard against a corrupt CSV being baked in -- was equally
+  unguarded; its duplicate, ordering, and empty-name checks could each be
+  deleted with every test still green. Both are now covered in
+  `test/fetchScript.test.ts`, including the "only one equinox present"
+  case the both-required rule exists for, and leap-year handling across
+  the 100- and 400-year rules. Confirmed by mutation: all six changes now
+  fail.
+
 - **The public API surface is now pinned by a test.** `src/index.ts` is
   the barrel every npm consumer imports through, but nothing referenced
   it except incidentally, so deleting an export from it -- `daysInMonth`,
