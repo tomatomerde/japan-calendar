@@ -119,9 +119,9 @@ export function holidaysForYear(year: number): readonly Holiday[] {
 
   const statutory: StatutoryHoliday[] = [];
   for (const y of [year - 1, year, year + 1]) {
-    if (y < MIN_SUPPORTED_YEAR - 1 || y > MAX_SUPPORTED_YEAR + 1) continue;
-    for (const holiday of statutoryHolidaysForYear(Math.max(MIN_SUPPORTED_YEAR, Math.min(MAX_SUPPORTED_YEAR, y)))) {
-      if (holiday.date.year === y) statutory.push({ date: holiday.date, confirmed: holiday.confirmed });
+    if (y < MIN_SUPPORTED_YEAR || y > MAX_SUPPORTED_YEAR) continue;
+    for (const holiday of statutoryHolidaysForYear(y)) {
+      statutory.push({ date: holiday.date, confirmed: holiday.confirmed });
     }
   }
 

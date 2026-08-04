@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { addBusinessDays, businessDaysBetween, isBusinessDay } from '../src/businessDays.ts';
+import { addBusinessDays, businessDaysBetween, isBusinessDay, type CalendarKind } from '../src/businessDays.ts';
+import { civilFromDays, daysFromCivil, toIsoDate } from '../src/civil.ts';
 import { OutOfRangeError } from '../src/errors.ts';
+import { MAX_SUPPORTED_YEAR, MIN_SUPPORTED_YEAR } from '../src/holidays.ts';
 
 describe('isBusinessDay', () => {
   it('土日は両カレンダーとも非営業日', () => {
@@ -102,5 +104,72 @@ describe('businessDaysBetween', () => {
     expect(businessDaysBetween('2026-12-29', '2027-01-06', 'national')).toBe(5);
     // bank: さらに12/31も除外されるので 12/29,12/30,1/4,1/5 の4日。
     expect(businessDaysBetween('2026-12-29', '2027-01-06', 'bank')).toBe(4);
+  });
+
+  /**
+   * businessDaysBetween は年単位の閉形式カウント (fullYearBusinessDayCount)
+   * を使って年またぎの区間を高速に計算する。ここでは素朴な「1日ずつ
+   * isBusinessDay を呼んで数える」実装との差分がないことを、年境界・
+   * うるう年境界を含む多数のケースで確認する。
+   */
+  function naiveBetween(from: string, to: string, calendar: CalendarKind): number {
+    const [fy, fm, fd] = from.split('-').map(Number) as [number, number, number];
+    const [ty, tm, td] = to.split('-').map(Number) as [number, number, number];
+    let lo = daysFromCivil(fy, fm, fd);
+    let hi = daysFromCivil(ty, tm, td);
+    const sign = lo <= hi ? 1 : -1;
+    if (lo > hi) [lo, hi] = [hi, lo];
+    let count = 0;
+    for (let d = lo; d < hi; d += 1) {
+      if (isBusinessDay(civilFromDays(d), calendar)) count += 1;
+    }
+    return count * sign;
+  }
+
+  it('年境界・うるう年境界で素朴な実装と一致する', () => {
+    const cases: Array<[string, string]> = [
+      ['2024-01-01', '2024-12-31'], // うるう年フル
+      ['2023-01-01', '2023-12-31'], // 平年フル
+      ['2023-12-31', '2024-01-01'], // 年境界1日
+      ['2023-12-30', '2024-01-02'], // 年境界を数日またぐ
+      [toIsoDate({ year: MIN_SUPPORTED_YEAR, month: 1, day: 1 }), toIsoDate({ year: MIN_SUPPORTED_YEAR + 1, month: 1, day: 1 })],
+      [toIsoDate({ year: MAX_SUPPORTED_YEAR - 1, month: 1, day: 1 }), toIsoDate({ year: MAX_SUPPORTED_YEAR, month: 12, day: 31 })],
+    ];
+    for (const [from, to] of cases) {
+      for (const calendar of ['national', 'bank'] as const) {
+        expect(businessDaysBetween(from, to, calendar), `${from} -> ${to} (${calendar})`).toBe(
+          naiveBetween(from, to, calendar),
+        );
+      }
+    }
+  });
+
+  it('対応範囲の全域でも素朴な日単位実装よりずっと高速（O(年数)であることの担保）', () => {
+    // 絶対時間の閾値はCI環境の速度でブレるため使わない。代わりに、同じ
+    // フルレンジ問い合わせを素朴な日単位実装と比較し、十分に高速である
+    // ことを相対的に確認する。O(日数)に戻る回帰が起きれば、この比は
+    // 1に近づく（=対象実装も遅くなる）ため検出できる。
+    //
+    // 両実装は holidaysForYear の結果をモジュール内で共有キャッシュする
+    // ため、先に呼んだ方が後に呼ぶ方のキャッシュを温めてしまい、
+    // 素朴実装が不当に速く見える。両方を一度ずつ呼んでキャッシュを
+    // 温めてから、warm な状態で計測する。
+    const from = toIsoDate({ year: MIN_SUPPORTED_YEAR, month: 1, day: 1 });
+    const to = toIsoDate({ year: MAX_SUPPORTED_YEAR, month: 12, day: 31 });
+
+    businessDaysBetween(from, to, 'national');
+    naiveBetween(from, to, 'national');
+
+    const fastStart = performance.now();
+    const fastResult = businessDaysBetween(from, to, 'national');
+    const fastMs = performance.now() - fastStart;
+
+    const naiveStart = performance.now();
+    const naiveResult = naiveBetween(from, to, 'national');
+    const naiveMs = performance.now() - naiveStart;
+
+    expect(fastResult).toBe(naiveResult);
+    expect(fastResult).toBeGreaterThan(0);
+    expect(fastMs).toBeLessThan(naiveMs / 5);
   });
 });

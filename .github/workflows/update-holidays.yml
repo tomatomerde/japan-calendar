@@ -67,6 +67,20 @@ jobs:
             git --no-pager diff --stat -- src/data/official.ts
           fi
 
+      # Runs the full suite -- most importantly officialMatch.test.ts --
+      # against the freshly regenerated data, before anything gets pushed.
+      # This is the only thing standing between a bad or unexpected CSV
+      # (a new holiday name format, a corrupted fetch, ...) and main; the
+      # PR opened below still goes through the normal pull_request CI, but
+      # by then the bad data would already be sitting on a pushed branch.
+      - name: Install dependencies
+        if: steps.diff.outputs.changed == 'true'
+        run: npm ci
+
+      - name: Test the regenerated data against the rule engine
+        if: steps.diff.outputs.changed == 'true'
+        run: npm test
+
       - name: Commit and push
         if: steps.diff.outputs.changed == 'true'
         env:

@@ -16,57 +16,41 @@ Not yet published to npm.
   its amendments, Happy Monday holidays, the Vernal/Autumnal Equinox Day
   approximation formula, substitute holidays, national holidays, one-off
   special holidays, and the 2020/2021 Olympic special-law date overrides.
-- A `confirmed` flag on Vernal Equinox Day and Autumnal Equinox Day
-  (and on any substitute/national holiday derived from them),
-  computed from the latest year covered by the official Cabinet Office data.
+  `isHoliday`, `holidaysForYear`, and `statutoryHolidaysForYear` all
+  validate their year argument and throw `OutOfRangeError` outside
+  1949-2099.
+- A `confirmed` flag on Vernal Equinox Day and Autumnal Equinox Day (and
+  on any substitute/national holiday derived from them). `true` only for
+  years actually covered by the official Cabinet Office data
+  (`OFFICIAL_META.firstYear` through `equinoxConfirmedThrough`); years
+  before or after that range rely on the approximation formula alone and
+  are `false`, even where the formula happens to agree with history.
 - Business-day arithmetic: `isBusinessDay`, `addBusinessDays`,
   `businessDaysBetween`, with `'national'` and `'bank'` calendars.
+  `computeBridgeHolidays` (the national-holiday rule) checks candidate
+  dates directly against the computed substitute holidays, so a day that's
+  already a substitute holiday is never also counted as a national
+  holiday; `test/invariants.test.ts` checks this holds across the entire
+  1949-2099 range (no duplicate dates, no substitute/national holiday on
+  a Sunday, every holiday is a non-business day).
+  `businessDaysBetween` counts whole years in a closed form (O(1) per
+  year) instead of visiting every day, so a query spanning the entire
+  supported range (`businessDaysBetween('1949-01-01', '2099-12-31')`) --
+  the kind of input a public HTTP API has to expect -- takes a fraction
+  of a millisecond instead of ~25ms, comfortably inside a Cloudflare
+  Workers request's CPU budget.
 - Wareki (Japanese era) conversion: `toWareki`, `fromWareki`,
   `formatWareki`, covering Meiji 6-1-1 (1873-01-01) onward.
 - A script (`scripts/fetch-syukujitsu.ts`) that fetches the Cabinet
-  Office's `syukujitsu.csv` and bakes it into `src/data/official.ts`,
-  run monthly by a GitHub Actions workflow.
+  Office's `syukujitsu.csv` and bakes it into `src/data/official.ts`. A
+  GitHub Actions workflow runs it monthly, runs the full test suite
+  against the freshly fetched data, and -- only if that passes -- pushes
+  the diff and opens a pull request.
 - A test suite that checks the rule engine's output against every date
-  in the official data (1955 through the latest year covered).
+  in the official data (1955 through the latest year covered);
+  `test/officialMatch.test.ts` fails loudly (rather than skipping) if
+  `src/data/official.ts` is ever missing its data.
 - A Cloudflare Workers HTTP API (`worker/index.ts`) exposing the library
   over `GET /v1/*` routes.
 - A dual ESM/CommonJS build (`npm run build`) and package layout ready
-  for npm publishing.
-
-### Fixed
-
-- `holidaysForYear` and `statutoryHolidaysForYear` (both part of the
-  public API) didn't validate their `year` argument, unlike `isHoliday`.
-  A year past 2099 would silently compute holidays using an equinox
-  formula with no validity guarantee instead of throwing `OutOfRangeError`,
-  and a year before 1949 would return an empty array indistinguishable
-  from "no holidays this year". Both now validate their input the same
-  way `isHoliday` does.
-- `equinoxConfirmedThrough` alone let 1949-1954 (years before the
-  official data's actual coverage starts) report `confirmed: true` for
-  Vernal/Autumnal Equinox Day, even though those years have never been
-  checked against real data. `confirmed` now also requires the year to
-  be at or after `OFFICIAL_META.firstYear`.
-- `update-holidays.yml` pushed to `chore/update-holiday-data` with
-  `--force-with-lease`, which rejects every run after the first because
-  `actions/checkout`'s shallow, single-branch clone has no
-  remote-tracking ref for that branch to form a lease against. Switched
-  to a plain `--force` (safe here: the branch only ever holds
-  bot-regenerated data). The workflow now also opens (or reuses) a pull
-  request instead of leaving the branch for someone to notice manually,
-  so the update actually gets tested and reviewed.
-- `computeBridgeHolidays` decided whether a national holiday's flanking
-  day should be excluded by checking if the *preceding* holiday fell on
-  a Sunday -- a proxy for "is this candidate day already a substitute
-  holiday". It now checks the candidate day against the actual computed
-  substitute holidays directly. (The old proxy happened to produce
-  correct results for every year in the supported range, verified by the
-  exhaustive invariant checks added in `test/invariants.test.ts`, but was
-  not structurally guaranteed to.)
-- `test/officialMatch.test.ts`, the strongest test in the suite, would
-  silently skip instead of failing if `src/data/official.ts` ever ended
-  up without data (e.g. from a bad merge). It now fails with a clear
-  message instead.
-- CI ran `typecheck` and `test` but never `npm run build`, so a broken
-  dual-package build (this actually happened once during development)
-  could land on `main` unnoticed. Added a `build` job.
+  for npm publishing. CI runs `build` alongside `typecheck` and `test`.
