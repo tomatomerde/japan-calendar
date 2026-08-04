@@ -1,17 +1,18 @@
 {
   "name": "japan-calendar",
   "version": "0.0.0",
-  "description": "日本の祝日・営業日・和暦を扱う依存ゼロの TypeScript ライブラリ",
+  "description": "Zero-dependency TypeScript library for Japanese holidays, business days, and wareki (era) date conversion",
   "keywords": [
     "japan",
     "japanese",
+    "japanese-holidays",
+    "japanese-calendar",
     "holiday",
-    "祝日",
+    "holidays",
     "business-days",
-    "営業日",
     "wareki",
-    "和暦",
     "calendar",
+    "jpx",
     "cloudflare-workers"
   ],
   "license": "MIT",

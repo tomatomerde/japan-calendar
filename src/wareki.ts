@@ -1,12 +1,14 @@
 /**
- * 和暦（元号）とグレゴリオ暦の相互変換。
+ * Conversion between wareki (Japanese era) dates and the Gregorian calendar.
  *
- * 対応範囲は **明治6年1月1日（1873-01-01）以降**。それより前は太陰太陽暦
- * （天保暦）で運用されており、グレゴリオ暦との単純な写像では変換できない。
+ * The supported range is **Meiji 6-1-1 (1873-01-01) onward**. Before that,
+ * Japan used a lunisolar calendar (the Tenpō calendar), which cannot be
+ * converted with a simple mapping to the Gregorian calendar.
  *
- * 改元日は新元号側に属する。1989-01-07 は昭和64年1月7日、翌 1989-01-08 は
- * 平成元年1月8日になる。**改元で変わるのは元号と年だけで、月日はそのまま
- * 引き継がれる**（「平成元年1月1日」のような日付にはならない）。
+ * An era change belongs to the new era. 1989-01-07 is Shōwa 64-1-7, and the
+ * next day, 1989-01-08, is Heisei 1-1-8. **Only the era name and year
+ * change at an era transition — the month and day carry over unchanged**
+ * (it never becomes something like "Heisei 1-1-1").
  */
 
 import {
@@ -24,12 +26,17 @@ import {
 } from './errors.js';
 import { toCivilDate, type DateInput } from './input.js';
 
+/**
+ * Era name in Japanese, as it's actually written (e.g. on official
+ * documents). This is domain data, like a holiday's name, not something to
+ * localize; `eraRomaji` and `eraAbbr` provide ASCII equivalents.
+ */
 export type EraName = '明治' | '大正' | '昭和' | '平成' | '令和';
 
 type EraRomaji = 'Meiji' | 'Taisho' | 'Showa' | 'Heisei' | 'Reiwa';
 type EraAbbr = 'M' | 'T' | 'S' | 'H' | 'R';
 
-/** 元号の別名。ローマ字と略号は大文字小文字を区別せずに受け付ける。 */
+/** Era alias. Romaji and abbreviations are accepted case-insensitively. */
 export type EraAlias = EraRomaji | Lowercase<EraRomaji> | EraAbbr | Lowercase<EraAbbr>;
 
 export type EraInput = EraName | EraAlias;
@@ -38,19 +45,20 @@ export interface EraDefinition {
   readonly name: EraName;
   readonly romaji: string;
   readonly abbr: string;
-  /** 元年に対応する西暦年。`西暦 = startYear + 元号年 - 1`。 */
+  /** The Gregorian year corresponding to era year 1. `gregorianYear = startYear + eraYear - 1`. */
   readonly startYear: number;
-  /** この元号として扱う最初の日。明治のみ、改暦後のサポート開始日を入れている。 */
+  /** First day treated as belonging to this era. For Meiji, this is the supported start date, not the actual accession date. */
   readonly from: CivilDate;
-  /** この元号として扱う最後の日。現行元号は null。 */
+  /** Last day treated as belonging to this era. `null` for the current era. */
   readonly to: CivilDate | null;
 }
 
 /**
- * 元号の定義。
+ * Era definitions.
  *
- * 明治の `from` は実際の改元日ではなくサポート開始日（改暦後の最初の日）。
- * 明治元年〜5年は旧暦なので、このライブラリでは扱わない。
+ * Meiji's `from` is not the actual era-change date but the start of this
+ * library's support window (the day after the calendar reform). Meiji
+ * years 1-5 used the old lunisolar calendar and are out of scope.
  */
 export const ERAS: readonly EraDefinition[] = [
   {
@@ -95,7 +103,7 @@ export const ERAS: readonly EraDefinition[] = [
   },
 ];
 
-/** 和暦の対応開始日（明治6年1月1日）。 */
+/** The start of the supported wareki range (Meiji 6-1-1). */
 export const WAREKI_SUPPORTED_FROM: CivilDate = { year: 1873, month: 1, day: 1 };
 
 const SUPPORTED_FROM_DAYS = daysFromCivil(1873, 1, 1);
@@ -104,13 +112,13 @@ export interface Wareki {
   readonly era: EraName;
   readonly eraRomaji: string;
   readonly eraAbbr: string;
-  /** 元号の年。1 は元年。 */
+  /** Year within the era. 1 is the first year. */
   readonly eraYear: number;
-  /** `eraYear === 1`。「元年」と表記すべきか。 */
+  /** `eraYear === 1`. Whether this should be written as "Gannen" (元年). */
   readonly isGannen: boolean;
   readonly month: number;
   readonly day: number;
-  /** 対応する西暦年。 */
+  /** The corresponding Gregorian year. */
   readonly gregorianYear: number;
 }
 
@@ -121,9 +129,9 @@ function findEraByDate(date: CivilDate): EraDefinition {
     const era = ERAS[i] as EraDefinition;
     if (compareCivil(date, era.from) >= 0) return era;
   }
-  // SUPPORTED_FROM_DAYS の検査を先に通しているのでここには来ない。
+  // Unreachable: the SUPPORTED_FROM_DAYS check above already rules this out.
   throw new UnsupportedWarekiRangeError(
-    `${date.year}-${date.month}-${date.day} に対応する元号が見つからない。`,
+    `No era found for ${date.year}-${date.month}-${date.day}.`,
   );
 }
 
@@ -132,9 +140,9 @@ export function toWareki(input: DateInput): Wareki {
 
   if (toDays(date) < SUPPORTED_FROM_DAYS) {
     throw new UnsupportedWarekiRangeError(
-      `和暦の対応範囲外: ${date.year}-${String(date.month).padStart(2, '0')}-` +
-        `${String(date.day).padStart(2, '0')}。明治6年1月1日（1873-01-01）以降のみ対応する。` +
-        `それ以前は太陰太陽暦（天保暦）で運用されており、単純な変換ができない。`,
+      `Outside the supported wareki range: ${date.year}-${String(date.month).padStart(2, '0')}-` +
+        `${String(date.day).padStart(2, '0')}. Only Meiji 6-1-1 (1873-01-01) onward is supported; ` +
+        `earlier dates used a lunisolar calendar (the Tenpō calendar) and cannot be converted directly.`,
     );
   }
 
@@ -178,24 +186,26 @@ function resolveEra(input: EraInput): EraDefinition {
     }
   }
   throw new InvalidDateInputError(
-    `未知の元号: ${JSON.stringify(raw)}。` +
-      `${ERAS.map((era) => `${era.name}(${era.romaji}/${era.abbr})`).join(', ')} のいずれかを渡すこと。`,
+    `Unknown era: ${JSON.stringify(raw)}. ` +
+      `Pass one of ${ERAS.map((era) => `${era.name}(${era.romaji}/${era.abbr})`).join(', ')}.`,
   );
 }
 
 /**
- * その日付を正しく表す和暦を文字列で返す。エラーメッセージ用のヒント。
- * 対応範囲外なら null。
+ * Renders the wareki date that actually corresponds to a civil date, as an
+ * ASCII "Romaji eraYear-month-day" hint for error messages
+ * (e.g. "Reiwa 1-5-1"). `null` if outside the supported range.
  */
 function describeCorrectWareki(date: CivilDate): string | null {
   if (toDays(date) < SUPPORTED_FROM_DAYS) return null;
-  return formatWareki(toWareki(date));
+  const wareki = toWareki(date);
+  return `${wareki.eraRomaji} ${wareki.eraYear}-${wareki.month}-${wareki.day}`;
 }
 
 /**
- * 和暦から西暦の暦日に変換する。
+ * Converts a wareki date to a Gregorian civil date.
  *
- * `eraYear` には元年を表す `1` または文字列 `'元'` を渡せる。
+ * `eraYear` accepts either `1` or the string `'元'` (gannen) for the first year.
  */
 export function fromWareki(
   era: EraInput,
@@ -207,14 +217,15 @@ export function fromWareki(
   const year = eraYear === '元' ? 1 : eraYear;
 
   if (!Number.isInteger(year) || year < 1) {
-    throw new InvalidDateInputError(`元号年は1以上の整数でなければならない: ${String(eraYear)}`);
+    throw new InvalidDateInputError(`Era year must be an integer >= 1: ${String(eraYear)}`);
   }
   if (!Number.isInteger(month) || !Number.isInteger(day)) {
-    throw new InvalidDateInputError(`月日は整数でなければならない: ${String(month)}月${String(day)}日`);
+    throw new InvalidDateInputError(`Month and day must be integers: ${String(month)}-${String(day)}`);
   }
 
-  // 改暦で失われた29日間。明治1〜5年は範囲外だが、この期間は
-  // 「そもそも存在しない日付」なので専用のエラーで区別する。
+  // The 29 days lost to the calendar reform. Meiji years 1-5 are out of
+  // range too, but this span gets its own error since these dates never
+  // existed at all, as opposed to merely being unsupported.
   if (definition.name === '明治' && year === 5 && month === 12 && day >= 3 && day <= 31) {
     throw new MeijiReformError(month, day);
   }
@@ -223,8 +234,8 @@ export function fromWareki(
 
   if (!isValidCivil(gregorianYear, month, day)) {
     throw new InvalidWarekiDateError(
-      `存在しない日付: ${definition.name}${year}年${month}月${day}日` +
-        `（西暦${gregorianYear}年${month}月${day}日に相当）。`,
+      `Date does not exist: ${definition.romaji} ${year}-${month}-${day} ` +
+        `(would correspond to Gregorian ${gregorianYear}-${month}-${day}).`,
     );
   }
 
@@ -232,10 +243,9 @@ export function fromWareki(
 
   if (toDays(date) < SUPPORTED_FROM_DAYS) {
     throw new UnsupportedWarekiRangeError(
-      `和暦の対応範囲外: ${definition.name}${year}年${month}月${day}日。` +
-        `明治6年1月1日（1873-01-01）以降のみ対応する。` +
-        `それ以前は太陰太陽暦（天保暦）で運用されており、年月日をそのまま` +
-        `グレゴリオ暦に読み替えることができない。`,
+      `Outside the supported wareki range: ${definition.romaji} ${year}-${month}-${day}. ` +
+        `Only Meiji 6-1-1 (1873-01-01) onward is supported; earlier dates used a lunisolar ` +
+        `calendar (the Tenpō calendar), so the year/month/day cannot be mapped directly to the Gregorian calendar.`,
     );
   }
 
@@ -244,9 +254,9 @@ export function fromWareki(
 
   if (beforeEra || afterEra) {
     const correct = describeCorrectWareki(date);
-    const hint = correct === null ? '' : ` この日は ${correct} にあたる。`;
+    const hint = correct === null ? '' : ` This date falls within ${correct}.`;
     throw new InvalidWarekiDateError(
-      `${definition.name}${year}年${month}月${day}日は${definition.name}の期間内に存在しない。${hint}`,
+      `${definition.romaji} ${year}-${month}-${day} does not exist within the ${definition.romaji} era.${hint}`,
     );
   }
 

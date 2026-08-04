@@ -1,9 +1,11 @@
 /**
- * 営業日API。
+ * Business day API.
  *
- * - `'national'` — 祝日のみを非営業日とする（土日は両カレンダーとも非営業日）。
- * - `'bank'` — 祝日に加え、12/31〜1/3 の銀行休業日も非営業日とする
- *   （1/1 は既に元日として祝日なので、実質 12/31・1/2・1/3 が追加される）。
+ * - `'national'` — Only holidays are treated as non-business days
+ *   (weekends are non-business days on both calendars).
+ * - `'bank'` — In addition to holidays, the bank holiday window of
+ *   12/31-1/3 is also treated as non-business days (1/1 is already a
+ *   holiday as New Year's Day, so this effectively adds 12/31, 1/2, and 1/3).
  */
 
 import { civilFromDays, isWeekend, toDays, type CivilDate } from './civil.js';
@@ -23,7 +25,7 @@ function holidayDaysForYear(year: number): ReadonlySet<number> {
   return set;
 }
 
-/** 12/31・1/2・1/3。1/1は元日として既に祝日なのでここには含めない。 */
+/** 12/31, 1/2, 1/3. 1/1 is excluded since it's already a holiday as New Year's Day. */
 function isBankOnlyClosure(date: CivilDate): boolean {
   return (date.month === 12 && date.day === 31) || (date.month === 1 && (date.day === 2 || date.day === 3));
 }
@@ -42,8 +44,9 @@ export function isBusinessDay(input: DateInput, calendar: CalendarKind = 'nation
 }
 
 /**
- * `n` 営業日後（`n` が負なら前）の日付を返す。`n === 0` の場合、`date` 自身が
- * 非営業日であっても補正せずそのまま返す。
+ * Returns the date `n` business days after `date` (or before, if `n` is
+ * negative). When `n === 0`, returns `date` unchanged even if it's not
+ * itself a business day.
  */
 export function addBusinessDays(input: DateInput, n: number, calendar: CalendarKind = 'national'): CivilDate {
   const start = toCivilDate(input);
@@ -65,8 +68,8 @@ export function addBusinessDays(input: DateInput, n: number, calendar: CalendarK
 }
 
 /**
- * `from` から `to` までの半開区間 `[from, to)` に含まれる営業日数。
- * `to < from` なら負値。`from === to` なら 0。
+ * Number of business days in the half-open interval `[from, to)`.
+ * Negative if `to < from`. `0` if `from === to`.
  */
 export function businessDaysBetween(from: DateInput, to: DateInput, calendar: CalendarKind = 'national'): number {
   const fromDate = toCivilDate(from);

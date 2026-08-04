@@ -1,54 +1,72 @@
+**English** | [日本語](./README.ja.md)
+
 # japan-calendar
 
-日本の祝日・営業日・和暦を扱う、依存ゼロの TypeScript ライブラリ。
-npm パッケージと Cloudflare Workers 上の HTTP API の2形態で提供する。
+A zero-dependency TypeScript library for Japanese holidays, business-day
+arithmetic, and wareki (Japanese era) date conversion — shipped both as an
+npm package and as an HTTP API on Cloudflare Workers.
 
-祝日判定・営業日計算・和暦変換・Cloudflare Workers 版 HTTP API まで実装済み。
-npm への実際の公開はまだ行っていない。
+Most free holiday libraries only answer "is this a holiday?". This one
+also treats **business-day arithmetic as a first-class feature**
+(`isBusinessDay` / `addBusinessDays` / `businessDaysBetween`), and it's
+the only one that **flags Vernal/Autumnal Equinox Day as `confirmed: true`
+or `false`** — those two holidays aren't legally fixed until the Official
+Gazette publishes the following year's "Calendrical Data" each February,
+so any date beyond that is inherently a forecast, not a fact.
 
-## 設計方針
+Holiday judgment, business-day arithmetic, wareki conversion, and the
+Cloudflare Workers HTTP API are all implemented. Not yet published to npm.
 
-- **実行時にデータを取得しない。** 内閣府の `syukujitsu.csv` を整形し、
-  静的な TypeScript モジュールとしてリポジトリに焼き込む。
-- **ルールエンジンが計算の主体で、公式データは正解データとして使う。**
-  公式CSVの収録範囲は 1955〜2027年しかないため、データだけを持つと
-  2028年以降に「祝日ではない」と嘘をつくことになる。祝日法と特例法を
-  コードで実装し、収録範囲では全日付を公式データと突き合わせて検証する。
-- **全ての日付計算は JST 固定。** `Date` のローカルタイムゾーン API は使わず、
-  暦日と通日（整数）だけで演算する。
-- **ランタイム依存はゼロ。** Cloudflare Workers で動く。
+## Design principles
 
-## 確定 / 暫定の区別
+- **No data fetching at runtime.** The Cabinet Office's `syukujitsu.csv`
+  is normalized once and baked into the repo as a static TypeScript module.
+- **A rule engine does the computing; the official data is the ground
+  truth used to verify it.** The official CSV only covers 1955-2027, so
+  shipping data alone would make the library falsely claim "not a
+  holiday" for 2028 onward. The Public Holiday Law and its amendments are
+  implemented in code, and every date within the covered range is checked
+  against the official data.
+- **All date arithmetic is pinned to JST.** `Date`'s local-timezone APIs
+  are never used; everything is computed from civil dates and an integer
+  day count instead.
+- **Zero runtime dependencies.** Runs on Cloudflare Workers.
 
-春分の日・秋分の日は、前年2月の官報「暦要項」で正式に決定される。
-したがって公式データの収録最終年が、そのまま確定/暫定の境界になる。
+## Confirmed vs. tentative
 
-境界年は手書きの定数ではなく、生成スクリプトが実データから算出する:
+Vernal Equinox Day and Autumnal Equinox Day are only officially finalized
+when the National Astronomical Observatory of Japan's "Calendrical Data"
+is published in the Official Gazette each February, for the following
+year. So the latest year covered by the official data is exactly the
+confirmed/tentative boundary.
+
+That boundary isn't a hand-maintained constant — a generator script
+computes it from the real data:
 
 ```
-equinoxConfirmedThrough = 「春分の日」と「秋分の日」を両方含む最大の年
+equinoxConfirmedThrough = the latest year that includes both "Vernal Equinox Day" and "Autumnal Equinox Day"
 ```
 
-「両方含む」を条件にすることで、年途中で部分的に追記された CSV を
-誤って確定扱いする事故を防いでいる。この年以前の春分/秋分は
-`confirmed: true`、これより後は `confirmed: false` になる。
+Requiring both to be present avoids mistakenly treating a year that was
+only partially appended mid-year as finalized. Equinox dates up to and
+including this year are `confirmed: true`; beyond it, `confirmed: false`.
 
-## 公式データの更新
+## Updating the official data
 
-内閣府のサイトは開発環境の egress ポリシーで遮断されているため、
-CSV の取得は GitHub Actions 上で行う。
+The Cabinet Office's site is blocked by the dev environment's egress
+policy, so the CSV is fetched via GitHub Actions instead.
 
 ```sh
-# ローカル（要ネットワーク到達性）
+# Local (requires network access)
 node scripts/fetch-syukujitsu.ts
 
-# 焼き込み済みデータの集計だけ見る（ネットワーク不要）
+# View a summary of the already-baked-in data (no network needed)
 node scripts/report.ts
 ```
 
-GitHub Actions の **Update holiday data** ワークフローが毎月1日に実行され、
-差分があれば `chore/update-holiday-data` ブランチに push する。
-`workflow_dispatch` で手動実行もできる。
+The **Update holiday data** GitHub Actions workflow runs on the 1st of
+every month and pushes any diff to the `chore/update-holiday-data`
+branch. It can also be run manually via `workflow_dispatch`.
 
 ## API
 
@@ -67,13 +85,13 @@ isHoliday('2026-09-22');
 // => { date: {year:2026,month:9,day:22}, name: '国民の休日', category: 'bridge', confirmed: true }
 
 isBusinessDay('2026-12-31', 'bank');
-// => false（'national' なら true。銀行休業日は 'bank' カレンダーだけの扱い）
+// => false (true for 'national'; the year-end/New Year bank holiday window only applies to 'bank')
 
 addBusinessDays('2026-12-30', 1, 'bank');
-// => { year: 2027, month: 1, day: 4 }（12/31・1/1〜1/3を飛ばす）
+// => { year: 2027, month: 1, day: 4 } (skips 12/31 and 1/1-1/3)
 
 businessDaysBetween('2026-08-03', '2026-08-08');
-// => 5（半開区間 [from, to)。to < from なら負値、from === to なら 0）
+// => 5 (half-open interval [from, to); negative if to < from, 0 if from === to)
 
 formatWareki(toWareki('2019-05-01'));
 // => '令和元年5月1日'
@@ -82,73 +100,85 @@ fromWareki('令和', 1, 5, 1);
 // => { year: 2019, month: 5, day: 1 }
 ```
 
-`isHoliday` / `isBusinessDay` / `addBusinessDays` / `businessDaysBetween` の
-対応範囲は 1949〜2099年（範囲外は `OutOfRangeError`）。和暦の対応範囲は
-明治6年1月1日（1873-01-01）以降（範囲外は `UnsupportedWarekiRangeError`、
-明治5年12月3日〜31日の改暦欠落日は `MeijiReformError`）。
+`isHoliday` / `isBusinessDay` / `addBusinessDays` / `businessDaysBetween`
+support years 1949-2099 (`OutOfRangeError` outside that). Wareki
+conversion supports Meiji 6-1-1 (1873-01-01) onward (`UnsupportedWarekiRangeError`
+outside that range; `MeijiReformError` for the 29 days lost to the 1873
+calendar reform, Meiji 5, month 12, days 3-31).
 
-`CalendarKind` は `'national'`（祝日のみ非営業日）と `'bank'`（祝日に加えて
-12/31・1/2・1/3も非営業日。1/1は元日として両カレンダーとも非営業日）の2種類。
-両カレンダーとも土日は非営業日。`addBusinessDays(date, 0)` は `date` 自身が
-非営業日でも補正せずそのまま返す。
+`CalendarKind` is either `'national'` (only holidays are non-business
+days) or `'bank'` (holidays plus 12/31, 1/2, and 1/3; 1/1 is already
+non-business on both calendars as New Year's Day). Weekends are
+non-business days on both calendars. `addBusinessDays(date, 0)` returns
+`date` unchanged even if it isn't itself a business day.
 
-### 春分の日・秋分の日の近似式について
+### About the equinox approximation formula
 
-`src/rules/equinox.ts` の近似式は、内閣府の公式データ（1955〜2027年、
-春分・秋分あわせて146件）と突き合わせて **1件の誤差もなく一致** することを
-確認済み。1949〜1954年（公式データの収録範囲外）は検証手段がなく、
-この式による外挿でしかない。
+The approximation formula in `src/rules/equinox.ts` has been verified
+against the Cabinet Office's official data (1955-2027, 146
+vernal/autumnal dates in total) with **zero discrepancies**. Years
+1949-1954 (outside the official data's coverage) have no way to be
+verified and rely purely on this formula's extrapolation.
 
-## テストの構成
+## Test suite
 
-- `test/officialMatch.test.ts` — ルールエンジンの出力を、内閣府公式データの
-  収録範囲（1955〜収録最終年）の**全日付・全名称**と突き合わせる。差分が
-  1件でもあれば失敗する。祝日ルールの正しさを担保する最も強い検証。
-- `test/holidays.test.ts` / `test/businessDays.test.ts` — 公式データの収録
-  範囲外や、法改正の境界年など、ピンポイントのケースを手書きで検証する。
+- `test/officialMatch.test.ts` — Checks the rule engine's output against
+  **every date and name** in the Cabinet Office's official data (1955
+  through the latest year covered). A single mismatch fails the test.
+  This is the strongest guarantee that the holiday rules are correct.
+- `test/holidays.test.ts` / `test/businessDays.test.ts` — Hand-written
+  checks for cases outside the official data's coverage, law-amendment
+  boundary years, and similar edge cases.
 - `test/civil.test.ts` / `test/input.test.ts` / `test/wareki.test.ts` —
-  日付基盤とタイムゾーン非依存性、和暦変換の検証。
+  The date foundation, timezone independence, and wareki conversion.
 
 ```sh
-npm test               # 全テスト
-npm run test:tz        # 4つのタイムゾーンで全テストを実行し、結果が同一であることを確認
-npm run typecheck      # ライブラリ本体・スクリプト・Worker の3プロジェクトを型検査
+npm test               # run all tests
+npm run test:tz        # run all tests under 4 timezones and confirm identical results
+npm run typecheck      # type-check all 3 projects: the library, scripts, and the Worker
 ```
 
-## ビルド・パッケージ構成
+## Build & package layout
 
 ```sh
-npm run build           # dist/esm（ESM + 型定義）と dist/cjs（CommonJS）を生成
+npm run build           # emits dist/esm (ESM + type declarations) and dist/cjs (CommonJS)
 ```
 
-`package.json` の `exports` で ESM/CJS/型定義を出し分ける。CJS側には
-`dist/cjs/package.json`（`{"type":"commonjs"}`）を生成時に配置し、
-リポジトリ直下の `"type": "module"` と衝突しないようにしている。
+`package.json`'s `exports` field serves ESM, CJS, and type declarations
+separately. `dist/cjs/package.json` (`{"type":"commonjs"}`) is written
+during the build so the CJS output doesn't clash with the repo root's
+`"type": "module"`.
 
-## Cloudflare Workers 版
+## Cloudflare Workers
 
-`worker/index.ts` はライブラリ本体を import するだけの薄いHTTP層。
-ランタイム依存はライブラリ同様ゼロ。
+`worker/index.ts` is a thin HTTP layer that just imports the library.
+Zero runtime dependencies, same as the library itself.
 
 ```sh
-npm run worker:dev      # ローカルで起動 (wrangler dev)
-npm run worker:deploy   # Cloudflare にデプロイ
+npm run worker:dev      # run locally (wrangler dev)
+npm run worker:deploy   # deploy to Cloudflare
 ```
 
 ```
 GET /v1/meta
-GET /v1/holidays/:year                 例: /v1/holidays/2026
-GET /v1/holidays/:date                 例: /v1/holidays/2026-09-22
+GET /v1/holidays/:year                 e.g. /v1/holidays/2026
+GET /v1/holidays/:date                 e.g. /v1/holidays/2026-09-22
 GET /v1/business-days/add?date=&days=&calendar=
 GET /v1/business-days/between?from=&to=&calendar=
 GET /v1/wareki?date=
 GET /v1/wareki/reverse?era=&year=&month=&day=
 ```
 
-祝日が確定済み（`confirmed: true`）のレスポンスは長期キャッシュ、暫定を
-含む場合は短期キャッシュを返す。エラーはライブラリの例外をそのまま
-`{ error: { type, message } }` の形で400番台に変換する。
+Responses where every holiday is finalized (`confirmed: true`) get a
+long cache lifetime; responses with a tentative holiday get a short one.
+Errors are the library's own exceptions, passed straight through as
+`{ error: { type, message } }` with a 4xx status.
 
-## ライセンス
+## Contributing
 
-ソフトウェアは MIT。同梱データの出典と条件は [NOTICE](./NOTICE) を参照。
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+## License
+
+The software is MIT licensed. See [NOTICE](./NOTICE) for the bundled
+data's source and terms.

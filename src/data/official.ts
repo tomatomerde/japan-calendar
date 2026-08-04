@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
-// 生成ファイル。手で編集しない。
-// 再生成: node scripts/fetch-syukujitsu.ts
-// 出典: 内閣府「国民の祝日について」syukujitsu.csv
-// ライセンス: CC BY 4.0（政府標準利用規約 第2.0版）
+// Generated file. Do not edit by hand.
+// Regenerate with: node scripts/fetch-syukujitsu.ts
+// Source: Cabinet Office, "National Holidays" (syukujitsu.csv)
+// License: CC BY 4.0 (Standard Terms of Use for Government Websites, v2.0)
 // ---------------------------------------------------------------------------
 
 import type { OfficialHolidayRow, OfficialMeta } from './official-types.js';

@@ -1,6 +1,7 @@
 /**
- * 祝日API。`HOLIDAY_LAW` / 例外 / 春分秋分の近似式 / 振替休日 / 国民の休日を
- * すべて統合し、年ごとの祝日一覧を組み立てる。
+ * Holiday API. Combines `HOLIDAY_LAW`, the exceptions, the equinox
+ * approximation formula, substitute holidays, and national holidays into
+ * a per-year list of holidays.
  */
 
 import { nthWeekdayOfMonth, toDays, type CivilDate, type Weekday } from './civil.js';
@@ -13,14 +14,14 @@ import { HOLIDAY_LAW, type HolidayDefinition } from './rules/holidayLaw.js';
 import { computeBridgeHolidays, computeSubstituteHolidays, type StatutoryHoliday } from './rules/observed.js';
 import type { Holiday } from './types.js';
 
-/** 祝日APIが受け付ける年の範囲。1948年は祝日法が年の途中で施行された不完全な年なので除く。 */
+/** Range of years the holiday API accepts. 1948 is excluded because the Public Holiday Law took effect partway through that year. */
 export const MIN_SUPPORTED_YEAR = 1949;
 export const MAX_SUPPORTED_YEAR = 2099;
 
 export function assertYearInRange(year: number): void {
   if (year < MIN_SUPPORTED_YEAR || year > MAX_SUPPORTED_YEAR) {
     throw new OutOfRangeError(
-      `対応範囲外の年: ${year}。祝日APIは ${MIN_SUPPORTED_YEAR}〜${MAX_SUPPORTED_YEAR} 年のみ対応する。`,
+      `Year out of range: ${year}. The holiday API only supports ${MIN_SUPPORTED_YEAR}-${MAX_SUPPORTED_YEAR}.`,
     );
   }
 }
@@ -48,7 +49,7 @@ function isEquinoxConfirmed(year: number): boolean {
 
 const statutoryCache = new Map<number, readonly Holiday[]>();
 
-/** その年の法定祝日（振替休日・国民の休日を含まない）。 */
+/** The statutory holidays for a given year (excludes substitute holidays and national holidays). */
 export function statutoryHolidaysForYear(year: number): readonly Holiday[] {
   const cached = statutoryCache.get(year);
   if (cached !== undefined) return cached;
@@ -92,12 +93,15 @@ export function statutoryHolidaysForYear(year: number): readonly Holiday[] {
 const yearCache = new Map<number, readonly Holiday[]>();
 
 /**
- * その年の祝日一覧（法定祝日・振替休日・国民の休日を全て含む）。
+ * The full list of holidays for a given year (statutory holidays,
+ * substitute holidays, and national holidays combined).
  *
- * 振替休日・国民の休日の判定には隣接年の法定祝日も必要になりうるため、
- * 前後1年ぶんも合わせて計算してから対象年だけを抜き出す。
- * （実際には祝日が年末年始をまたいで連鎖することは無いが、判定ロジックを
- * 年の内部だけに閉じた前提にしないための保険。）
+ * Determining substitute holidays and national holidays can require the
+ * statutory holidays of adjacent years, so this computes the surrounding
+ * year on each side too before extracting just the target year.
+ * (In practice, holiday placement never produces a chain that crosses a
+ * year boundary, but this avoids assuming the logic is confined to a
+ * single year.)
  */
 export function holidaysForYear(year: number): readonly Holiday[] {
   const cached = yearCache.get(year);
@@ -120,7 +124,7 @@ export function holidaysForYear(year: number): readonly Holiday[] {
   return all;
 }
 
-/** 指定の日付が祝日かどうか。祝日なら `Holiday`、そうでなければ `null`。 */
+/** Whether the given date is a holiday. Returns a `Holiday` if so, otherwise `null`. */
 export function isHoliday(input: DateInput): Holiday | null {
   const date: CivilDate = toCivilDate(input);
   assertYearInRange(date.year);

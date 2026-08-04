@@ -1,12 +1,15 @@
 import type { CivilDate } from './civil.js';
 
 /**
- * 祝日の区分。
+ * A holiday's category.
  *
- * - `statutory` — 祝日法・特例法で日付が直接定められている祝日
- *   （ハッピーマンデーや春分/秋分、一回限りの特例日を含む）
- * - `substitute` — 振替休日（祝日が日曜日と重なったことによる休日）
- * - `bridge` — 国民の休日（前後を祝日に挟まれた平日）
+ * - `statutory` — A holiday whose date is directly set by the Public
+ *   Holiday Law or a special law (including Happy Monday holidays, the
+ *   equinox holidays, and one-off special holidays).
+ * - `substitute` — A substitute holiday (振替休日), granted because a
+ *   holiday fell on a Sunday.
+ * - `bridge` — A national holiday (国民の休日), a weekday sandwiched
+ *   between two holidays.
  */
 export type HolidayCategory = 'statutory' | 'substitute' | 'bridge';
 
@@ -15,9 +18,12 @@ export interface Holiday {
   readonly name: string;
   readonly category: HolidayCategory;
   /**
-   * 官報で正式決定済みかどうか。春分の日・秋分の日は前年2月の暦要項で
-   * 正式決定されるため、それ以降の年は近似式による暫定値になる。
-   * 振替休日・国民の休日は、依存する祝日の confirmed をそのまま継承する。
+   * Whether this date has been officially finalized in the Official
+   * Gazette. The equinox holidays (Vernal/Autumnal Equinox Day) are
+   * finalized in the "Calendrical Data" (暦要項) published in February of
+   * the preceding year, so years beyond that are tentative values from an
+   * approximation formula. Substitute holidays and national holidays
+   * inherit `confirmed` from the holiday(s) they depend on.
    */
   readonly confirmed: boolean;
 }

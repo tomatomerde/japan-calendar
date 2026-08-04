@@ -1,6 +1,6 @@
 /**
- * このライブラリが投げる例外。すべて `JapanCalendarError` を継承するので、
- * 呼び出し側は `instanceof JapanCalendarError` でまとめて捕まえられる。
+ * Exceptions thrown by this library. All extend `JapanCalendarError`, so
+ * callers can catch them all at once with `instanceof JapanCalendarError`.
  */
 
 export class JapanCalendarError extends Error {
@@ -10,34 +10,37 @@ export class JapanCalendarError extends Error {
   }
 }
 
-/** 引数の型・形式が受け付けられない。 */
+/** The argument's type or format is not accepted. */
 export class InvalidDateInputError extends JapanCalendarError {}
 
-/** 対応範囲の外。祝日APIなら 1949〜2099年、和暦なら明治6年1月1日以降。 */
+/** Outside the supported range: 1949-2099 for the holiday API, or before Meiji 6-1-1 for wareki. */
 export class OutOfRangeError extends JapanCalendarError {}
 
 /**
- * 明治5年12月3日〜12月31日。
+ * Meiji 5, month 12, days 3-31.
  *
- * 改暦（太政官布告第337号）により、明治5年12月2日の翌日が明治6年1月1日
- * （＝1873-01-01）になった。この29日間はどの暦にも存在しない。
+ * The 1873 calendar reform (Daijō-kan Proclamation No. 337) made the day
+ * after Meiji 5-12-2 into Meiji 6-1-1 (1873-01-01). These 29 days never
+ * existed in either calendar.
  */
 export class MeijiReformError extends JapanCalendarError {
   constructor(month: number, day: number) {
     super(
-      `明治5年${month}月${day}日は存在しない。改暦により明治5年12月2日（1872-12-31）の` +
-        `翌日が明治6年1月1日（1873-01-01）となり、明治5年12月3日〜31日は暦から失われている。`,
+      `Meiji 5-${month}-${day} does not exist. The 1873 calendar reform made the day ` +
+        `after Meiji 5-12-2 (1872-12-31) into Meiji 6-1-1 (1873-01-01), so Meiji 5-12-3 ` +
+        `through 5-12-31 are missing from the calendar.`,
     );
   }
 }
 
 /**
- * 和暦の対応範囲外。
+ * Outside the supported range for wareki (Japanese era) conversion.
  *
- * 明治6年1月1日（1873-01-01）より前は太陰太陽暦（天保暦）で、
- * グレゴリオ暦との単純な写像では変換できないため対応しない。
+ * Dates before Meiji 6-1-1 (1873-01-01) used a lunisolar calendar (the
+ * Tenpō calendar), which cannot be converted with a simple mapping to the
+ * Gregorian calendar, so this range is unsupported.
  */
 export class UnsupportedWarekiRangeError extends JapanCalendarError {}
 
-/** 元号の期間内に存在しない和暦日付（例: 昭和64年1月8日）。 */
+/** A wareki date that does not exist within its era's span (e.g. Shōwa 64-1-8). */
 export class InvalidWarekiDateError extends JapanCalendarError {}

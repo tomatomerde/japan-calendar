@@ -1,8 +1,9 @@
 /**
- * 振替休日・国民の休日の導出。
+ * Derivation of substitute holidays and national holidays.
  *
- * どちらも「法定祝日の集合」だけから機械的に決まるので、ここでは
- * 具体的な祝日の意味を知らず、`{ date, confirmed }` の集合だけを受け取る。
+ * Both are determined mechanically from just "the set of statutory
+ * holidays", so this module doesn't know what any particular holiday
+ * means — it only receives a set of `{ date, confirmed }` pairs.
  */
 
 import { SUNDAY, addDays, compareCivil, isSameCivil, weekdayOf, type CivilDate } from '../civil.js';
@@ -13,19 +14,22 @@ export interface StatutoryHoliday {
   readonly confirmed: boolean;
 }
 
-/** 振替休日制度の開始日（1973-04-12施行）。これより前の祝日は振替休日を生まない。 */
+/** Start of the substitute-holiday system (took effect 1973-04-12). Holidays before this never produce a substitute holiday. */
 const SUBSTITUTE_RULE_FROM: CivilDate = { year: 1973, month: 4, day: 12 };
 
 /**
- * 「翌日が既に祝日ならさらに翌日へ」と連鎖させる改正の施行日（2007-01-01）。
- * これより前は、祝日でなくとも単純に「その翌日」を振替休日とする。
+ * Effective date (2007-01-01) of the amendment that chains forward "if the
+ * next day is already a holiday too, move to the day after that". Before
+ * this, the substitute holiday is simply "the following day", regardless
+ * of whether that day is itself a holiday.
  */
 const SUBSTITUTE_CHAIN_RULE_FROM: CivilDate = { year: 2007, month: 1, day: 1 };
 
 /**
- * 国民の休日の制度が施行された日（1985-12-27）。実際に条件を満たす日が
- * 現れたのは1988-05-04が最初。日曜日に挟まれた場合は対象外
- * （国民の祝日に関する法律 第3条3項）。
+ * Effective date (1985-12-27) of the national-holiday system. The first
+ * date that actually satisfied the condition was 1988-05-04. A day
+ * sandwiched by Sunday holidays is excluded (Public Holiday Law, Article
+ * 3, Paragraph 3).
  */
 const BRIDGE_RULE_FROM: CivilDate = { year: 1986, month: 1, day: 1 };
 
@@ -48,9 +52,11 @@ function toHoliday(date: CivilDate, name: string, category: HolidayCategory, con
 }
 
 /**
- * 振替休日。`statutory` は判定対象期間の前後を含む十分広い範囲の
- * 法定祝日集合であること（年境界をまたぐ連鎖はこのライブラリの祝日配置
- * 上は発生しないが、念のため呼び出し側で前後1年を渡す設計にしている）。
+ * Substitute holidays. `statutory` should be a wide enough set of
+ * statutory holidays to cover the period around the one being checked
+ * (holiday placement in this library never produces a chain that crosses
+ * a year boundary, but callers are still designed to pass in the
+ * surrounding year on each side, just in case).
  */
 export function computeSubstituteHolidays(statutory: readonly StatutoryHoliday[]): Holiday[] {
   const index = makeIndex(statutory);
@@ -72,9 +78,10 @@ export function computeSubstituteHolidays(statutory: readonly StatutoryHoliday[]
 }
 
 /**
- * 国民の休日。前日・翌日がともに法定祝日で、当日自身は祝日でなく、
- * かつ日曜日でない日が対象（国民の祝日に関する法律 第3条3項。
- * 土曜日は除外されない）。
+ * National holidays. Applies to a day that is a statutory holiday on
+ * neither the day itself nor a Sunday, but is preceded and followed by
+ * statutory holidays (Public Holiday Law, Article 3, Paragraph 3 —
+ * Saturday is not excluded).
  */
 export function computeBridgeHolidays(statutory: readonly StatutoryHoliday[]): Holiday[] {
   const index = makeIndex(statutory);
@@ -82,15 +89,17 @@ export function computeBridgeHolidays(statutory: readonly StatutoryHoliday[]): H
 
   for (const holiday of statutory) {
     if (isBefore(holiday.date, BRIDGE_RULE_FROM)) continue;
-    // 前日の祝日が日曜日なら、その翌日はすでに振替休日として祝日になっている。
-    // 「祝日に挟まれた非祝日」という国民の休日の要件を満たさないので対象外。
+    // If the preceding holiday falls on a Sunday, the following day is
+    // already a holiday via the substitute-holiday rule. That fails the
+    // national-holiday requirement of "a non-holiday sandwiched between
+    // holidays", so skip it.
     if (weekdayOf(holiday.date) === SUNDAY) continue;
 
     const candidate = addDays(holiday.date, 1);
-    if (index.has(candidate)) continue; // 翌日も祝日ならそれ自体が祝日で、挟まれた平日ではない
+    if (index.has(candidate)) continue; // If the next day is also a holiday, it's a holiday in its own right, not a sandwiched weekday.
 
     const dayAfterCandidate = addDays(candidate, 1);
-    if (!index.has(dayAfterCandidate)) continue; // 挟まれていない
+    if (!index.has(dayAfterCandidate)) continue; // Not sandwiched.
     if (weekdayOf(candidate) === SUNDAY) continue;
 
     const confirmed = holiday.confirmed && (index.confirmedOf(dayAfterCandidate) ?? false);

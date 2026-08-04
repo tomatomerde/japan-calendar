@@ -111,12 +111,12 @@ describe('fromWareki', () => {
 
   it('元号の期間外を弾き、正しい和暦を示す', () => {
     expect(() => fromWareki('昭和', 64, 1, 8)).toThrow(InvalidWarekiDateError);
-    expect(() => fromWareki('昭和', 64, 1, 8)).toThrow(/平成元年1月8日/);
+    expect(() => fromWareki('昭和', 64, 1, 8)).toThrow(/Heisei 1-1-8/);
 
-    expect(() => fromWareki('平成', 31, 5, 1)).toThrow(/令和元年5月1日/);
-    expect(() => fromWareki('平成', 1, 1, 7)).toThrow(/昭和64年1月7日/);
-    expect(() => fromWareki('大正', 15, 12, 25)).toThrow(/昭和元年12月25日/);
-    expect(() => fromWareki('明治', 45, 7, 30)).toThrow(/大正元年7月30日/);
+    expect(() => fromWareki('平成', 31, 5, 1)).toThrow(/Reiwa 1-5-1/);
+    expect(() => fromWareki('平成', 1, 1, 7)).toThrow(/Showa 64-1-7/);
+    expect(() => fromWareki('大正', 15, 12, 25)).toThrow(/Showa 1-12-25/);
+    expect(() => fromWareki('明治', 45, 7, 30)).toThrow(/Taisho 1-7-30/);
   });
 
   it('存在しない暦日を弾く', () => {
@@ -138,7 +138,7 @@ describe('fromWareki — 明治改暦', () => {
     for (let day = 3; day <= 31; day += 1) {
       expect(() => fromWareki('明治', 5, 12, day)).toThrow(MeijiReformError);
     }
-    expect(() => fromWareki('明治', 5, 12, 3)).toThrow(/改暦/);
+    expect(() => fromWareki('明治', 5, 12, 3)).toThrow(/calendar reform/);
   });
 
   it('明治5年12月2日以前は「対応範囲外」であって改暦エラーではない', () => {

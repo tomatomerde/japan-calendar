@@ -25,8 +25,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 全ての日付計算は JST 固定なので、プロセスのタイムゾーンが何であっても
-        # 結果は変わらないはず。日付変更線の両側（UTC+14 と UTC-11）を含めて回す。
+        # All date arithmetic is fixed to JST, so the result should never
+        # depend on the process's timezone. Includes both sides of the
+        # date line (UTC+14 and UTC-11).
         timezone:
           - Asia/Tokyo
           - UTC

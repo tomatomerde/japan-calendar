@@ -1,13 +1,13 @@
 /**
- * japan-calendar の Cloudflare Workers 版 HTTP API。
+ * japan-calendar's Cloudflare Workers HTTP API.
  *
- * ライブラリ本体（src/）を import するだけの薄い層。ランタイム依存は
- * ライブラリ同様ゼロ。
+ * A thin layer that just imports the library (src/). Zero runtime
+ * dependencies, same as the library.
  *
- * ルート:
+ * Routes:
  *   GET /v1/meta
- *   GET /v1/holidays/:year               例: /v1/holidays/2026
- *   GET /v1/holidays/:date               例: /v1/holidays/2026-09-22
+ *   GET /v1/holidays/:year               e.g. /v1/holidays/2026
+ *   GET /v1/holidays/:date                e.g. /v1/holidays/2026-09-22
  *   GET /v1/business-days/add?date=&days=&calendar=
  *   GET /v1/business-days/between?from=&to=&calendar=
  *   GET /v1/wareki?date=
@@ -28,7 +28,7 @@ import { addBusinessDays, businessDaysBetween, type CalendarKind } from '../src/
 import { formatWareki, fromWareki, toWareki, WAREKI_SUPPORTED_FROM, type EraInput } from '../src/wareki.js';
 import type { Holiday } from '../src/types.js';
 
-/** クエリパラメータの欠落・型不一致など、ライブラリの例外では表現できないリクエスト不正。 */
+/** A malformed request (missing/mistyped query parameters, etc.) that the library's own exceptions can't express. */
 class BadRequestError extends Error {}
 
 const CORS_HEADERS = {
@@ -39,9 +39,9 @@ const CORS_HEADERS = {
 type CacheTier = 'long' | 'short' | 'none';
 
 const CACHE_CONTROL: Record<CacheTier, string> = {
-  // 和暦・確定済み祝日など、後から変わらないデータ。
+  // Data that never changes later, such as wareki conversions or finalized holidays.
   long: 'public, max-age=2592000, immutable',
-  // 暫定の春分/秋分に依存しうるデータや、メタ情報。
+  // Data that may depend on a tentative equinox date, or metadata.
   short: 'public, max-age=3600',
   none: 'no-store',
 };
@@ -78,7 +78,7 @@ function serializeHoliday(holiday: Holiday): {
 function requireParam(searchParams: URLSearchParams, name: string): string {
   const value = searchParams.get(name);
   if (value === null || value === '') {
-    throw new BadRequestError(`必須のクエリパラメータがない: ${name}`);
+    throw new BadRequestError(`Missing required query parameter: ${name}`);
   }
   return value;
 }
@@ -86,7 +86,7 @@ function requireParam(searchParams: URLSearchParams, name: string): string {
 function parseCalendar(searchParams: URLSearchParams): CalendarKind {
   const raw = searchParams.get('calendar') ?? 'national';
   if (raw !== 'national' && raw !== 'bank') {
-    throw new BadRequestError(`calendar は 'national' か 'bank' のいずれかでなければならない: ${raw}`);
+    throw new BadRequestError(`calendar must be either 'national' or 'bank': ${raw}`);
   }
   return raw;
 }
@@ -94,7 +94,7 @@ function parseCalendar(searchParams: URLSearchParams): CalendarKind {
 function parseInteger(raw: string, name: string): number {
   const value = Number(raw);
   if (!Number.isInteger(value)) {
-    throw new BadRequestError(`${name} は整数でなければならない: ${raw}`);
+    throw new BadRequestError(`${name} must be an integer: ${raw}`);
   }
   return value;
 }
@@ -211,7 +211,7 @@ function route(request: Request): Response {
   if (pathname === '/v1/wareki') return handleWareki(searchParams);
   if (pathname === '/v1/wareki/reverse') return handleWarekiReverse(searchParams);
 
-  return errorResponse(404, 'NotFound', `不明なルート: ${pathname}`);
+  return errorResponse(404, 'NotFound', `Unknown route: ${pathname}`);
 }
 
 export default {
@@ -220,7 +220,7 @@ export default {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
     if (request.method !== 'GET') {
-      return errorResponse(405, 'MethodNotAllowed', `${request.method} は許可されていない。GET のみ。`);
+      return errorResponse(405, 'MethodNotAllowed', `${request.method} is not allowed. Only GET is supported.`);
     }
 
     try {
@@ -229,9 +229,9 @@ export default {
       if (error instanceof JapanCalendarError || error instanceof BadRequestError) {
         return errorResponse(400, error.constructor.name, error.message);
       }
-      // 想定外の例外。詳細を漏らさず、ログにだけ残す。
+      // Unexpected exception. Don't leak details to the client, just log it.
       console.error(error);
-      return errorResponse(500, 'InternalError', '内部エラーが発生した。');
+      return errorResponse(500, 'InternalError', 'An internal error occurred.');
     }
   },
 };

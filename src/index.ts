@@ -1,5 +1,6 @@
 /**
- * japan-calendar — 日本の祝日・営業日・和暦を扱う依存ゼロのライブラリ。
+ * japan-calendar — A zero-dependency library for Japanese holidays,
+ * business days, and wareki (Japanese era) date conversion.
  */
 
 export {

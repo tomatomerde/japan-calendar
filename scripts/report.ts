@@ -1,7 +1,7 @@
 /**
- * 焼き込み済みの公式データ（src/data/official.ts）を集計して標準出力に出す。
+ * Summarizes the baked-in official data (src/data/official.ts) to stdout.
  *
- * ネットワークを使わないので、どの環境でも実行できる。
+ * Uses no network access, so it can run in any environment.
  *   node scripts/report.ts
  */
 
@@ -16,7 +16,7 @@ export interface Anomaly {
   readonly detail: string;
 }
 
-/** 日付文字列が実在するグレゴリオ暦日か（`YYYY-MM-DD` 前提）。 */
+/** Whether a date string is a real Gregorian calendar date (assumes `YYYY-MM-DD`). */
 function isRealDate(iso: string): boolean {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (m === null) return false;
@@ -30,8 +30,9 @@ function isRealDate(iso: string): boolean {
 }
 
 /**
- * 「春分の日」と「秋分の日」を両方含む最大の年。
- * 片方しか無い年を確定扱いしないため、両方揃っていることを条件にする。
+ * The latest year that includes both "Vernal Equinox Day" and "Autumnal
+ * Equinox Day". Requiring both present avoids treating a year with only
+ * one of them as finalized.
  */
 export function computeEquinoxConfirmedThrough(rows: readonly OfficialHolidayRow[]): number | null {
   const vernal = new Set<number>();
@@ -48,7 +49,7 @@ export function computeEquinoxConfirmedThrough(rows: readonly OfficialHolidayRow
   return best;
 }
 
-/** 並び順・重複・日付妥当性の検査。 */
+/** Checks ordering, duplicates, and date validity. */
 export function findAnomalies(rows: readonly OfficialHolidayRow[]): Anomaly[] {
   const anomalies: Anomaly[] = [];
   const seen = new Set<string>();
@@ -62,7 +63,7 @@ export function findAnomalies(rows: readonly OfficialHolidayRow[]): Anomaly[] {
     }
     seen.add(date);
     if (previous !== '' && date <= previous) {
-      anomalies.push({ kind: 'out-of-order', detail: `${previous} の次に ${date}` });
+      anomalies.push({ kind: 'out-of-order', detail: `${date} comes after ${previous}` });
     }
     previous = date;
     if (name.length === 0) {
@@ -76,17 +77,17 @@ export function renderReport(rows: readonly OfficialHolidayRow[], meta: Official
   const out: string[] = [];
   const push = (line = ''): void => void out.push(line);
 
-  push('=== 内閣府 syukujitsu.csv パース結果 ===');
+  push('=== Cabinet Office syukujitsu.csv parse results ===');
   push();
-  push(`取得元      : ${meta.sourceUrl}`);
-  push(`取得日時    : ${meta.fetchedAt ?? '(未取得)'}`);
-  push(`CSV SHA-256 : ${meta.sha256 ?? '(未取得)'}`);
-  push(`総件数      : ${rows.length}`);
+  push(`Source        : ${meta.sourceUrl}`);
+  push(`Fetched at    : ${meta.fetchedAt ?? '(not fetched)'}`);
+  push(`CSV SHA-256   : ${meta.sha256 ?? '(not fetched)'}`);
+  push(`Total rows    : ${rows.length}`);
 
   if (rows.length === 0) {
     push();
-    push('データが未取得です。GitHub Actions の "Update holiday data" ワークフローを');
-    push('workflow_dispatch で実行してください（開発環境からは cao.go.jp に到達できません）。');
+    push('No data has been fetched yet. Run the "Update holiday data" GitHub Actions');
+    push('workflow via workflow_dispatch (cao.go.jp is unreachable from the dev environment).');
     return out.join('\n');
   }
 
@@ -99,34 +100,34 @@ export function renderReport(rows: readonly OfficialHolidayRow[], meta: Official
   const firstYear = years[0] as number;
   const lastYear = years[years.length - 1] as number;
 
-  push(`最古年      : ${firstYear}`);
-  push(`最新年      : ${lastYear}`);
-  push(`収録年数    : ${years.length}`);
+  push(`First year    : ${firstYear}`);
+  push(`Last year     : ${lastYear}`);
+  push(`Years covered : ${years.length}`);
 
   const missing = [];
   for (let y = firstYear; y <= lastYear; y += 1) {
     if (!byYear.has(y)) missing.push(y);
   }
-  push(`欠落年      : ${missing.length === 0 ? 'なし' : missing.join(', ')}`);
+  push(`Missing years : ${missing.length === 0 ? 'none' : missing.join(', ')}`);
 
   push();
-  push('--- 確定/暫定の境界年 ---');
+  push('--- Confirmed/tentative boundary year ---');
   const boundary = computeEquinoxConfirmedThrough(rows);
-  push(`EQUINOX_CONFIRMED_THROUGH = ${boundary ?? '(判定不能)'}`);
-  push('（「春分の日」と「秋分の日」を両方含む最大の年）');
+  push(`EQUINOX_CONFIRMED_THROUGH = ${boundary ?? '(could not determine)'}`);
+  push('(the latest year that includes both Vernal Equinox Day and Autumnal Equinox Day)');
   if (boundary !== null && boundary < lastYear) {
-    push(`注意: 収録最新年 ${lastYear} は春分/秋分が揃っていないため境界に採用していない。`);
+    push(`Note: the latest year covered (${lastYear}) doesn't have both equinox dates, so it wasn't used as the boundary.`);
   }
 
   push();
-  push('--- 年ごとの件数 ---');
+  push('--- Rows per year ---');
   for (const year of years) {
     const count = byYear.get(year) as number;
     push(`${year}: ${String(count).padStart(2, ' ')}  ${'#'.repeat(count)}`);
   }
 
   push();
-  push('--- 出現する名称 ---');
+  push('--- Names observed ---');
   interface NameStat {
     count: number;
     first: number;
@@ -146,18 +147,18 @@ export function renderReport(rows: readonly OfficialHolidayRow[], meta: Official
   }
   const names = [...byName.entries()].sort((a, b) => b[1].count - a[1].count);
   const width = Math.max(...names.map(([name]) => [...name].length));
-  push(`名称の種類  : ${names.length}`);
+  push(`Distinct names: ${names.length}`);
   push();
   for (const [name, stat] of names) {
     const padding = ' '.repeat(width - [...name].length);
-    push(`${name}${padding}  ${String(stat.count).padStart(4, ' ')}件  ${stat.first}〜${stat.last}`);
+    push(`${name}${padding}  ${String(stat.count).padStart(4, ' ')}x  ${stat.first}-${stat.last}`);
   }
 
   push();
-  push('--- 整合性チェック ---');
+  push('--- Consistency checks ---');
   const anomalies = findAnomalies(rows);
   if (anomalies.length === 0) {
-    push('問題なし（重複なし・日付妥当・昇順）');
+    push('No issues (no duplicates, valid dates, ascending order)');
   } else {
     for (const anomaly of anomalies) {
       push(`[${anomaly.kind}] ${anomaly.detail}`);

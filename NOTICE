@@ -1,14 +1,15 @@
 japan-calendar
 
-ソフトウェア本体は MIT License（LICENSE を参照）。
+The software itself is licensed under the MIT License (see LICENSE).
 
-同梱している祝日データ（src/data/official.ts）は、内閣府が公開する
-「国民の祝日について」の syukujitsu.csv を整形したものです。
+The bundled holiday data (src/data/official.ts) is derived from the
+Cabinet Office of Japan's "National Holidays" syukujitsu.csv.
 
-  出典: 内閣府「国民の祝日について」
-  URL:  https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv
-  ライセンス: クリエイティブ・コモンズ 表示 4.0 国際 (CC BY 4.0)
-              https://creativecommons.org/licenses/by/4.0/deed.ja
+  Source:  Cabinet Office of Japan, "National Holidays"
+  URL:     https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv
+  License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+           https://creativecommons.org/licenses/by/4.0/
 
-データは日付と名称のみを抽出し、日付を ISO 8601 形式に正規化した上で
-TypeScript モジュールとして焼き込んでいます。内容の改変は行っていません。
+Only the date and name columns are extracted, dates are normalized to
+ISO 8601 format, and the result is baked into a TypeScript module.
+No other content has been altered.

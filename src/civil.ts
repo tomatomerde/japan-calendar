@@ -1,13 +1,14 @@
 /**
- * 暦日と通日の相互変換。
+ * Conversion between civil (calendar) dates and day numbers.
  *
- * このライブラリの日付計算はすべてここを土台にする。`Date` のローカル
- * タイムゾーン API（`getFullYear` など）は **一切使わない**。暦日
- * （年・月・日）と、1970-01-01 を 0 とする整数の通日だけで演算するので、
- * 実行環境のタイムゾーンによって結果が変わることがない。
+ * All date arithmetic in this library is built on top of this module.
+ * `Date`'s local-timezone APIs (`getFullYear`, etc.) are **never used**.
+ * Everything is computed from civil dates (year/month/day) and an integer
+ * day number counted from 1970-01-01 = 0, so the result never depends on
+ * the runtime's timezone.
  *
- * 変換は Howard Hinnant の `days_from_civil` / `civil_from_days`
- * （proleptic Gregorian、うるう年規則をそのまま過去に延長する）。
+ * Conversion follows Howard Hinnant's `days_from_civil` / `civil_from_days`
+ * (proleptic Gregorian, extending the leap-year rule indefinitely into the past).
  */
 
 export interface CivilDate {
@@ -16,13 +17,13 @@ export interface CivilDate {
   readonly day: number;
 }
 
-/** 0=日曜, 1=月曜, ... 6=土曜。 */
+/** 0=Sunday, 1=Monday, ... 6=Saturday. */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export const SUNDAY = 0;
 export const SATURDAY = 6;
 
-/** 負数でも 0 方向に丸める整数除算。 */
+/** Integer division that truncates toward zero, even for negative numbers. */
 function idiv(a: number, b: number): number {
   return Math.trunc(a / b);
 }
@@ -53,14 +54,14 @@ export function daysInMonth(year: number, month: number): number {
   }
 }
 
-/** 実在する暦日か。月・日が範囲内で、かつ整数であること。 */
+/** Whether this civil date actually exists: month and day in range, and all integers. */
 export function isValidCivil(year: number, month: number, day: number): boolean {
   if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
   if (month < 1 || month > 12) return false;
   return day >= 1 && day <= daysInMonth(year, month);
 }
 
-/** 1970-01-01 を 0 とする通日に変換する。 */
+/** Converts to a day number counted from 1970-01-01 = 0. */
 export function daysFromCivil(year: number, month: number, day: number): number {
   const y = year - (month <= 2 ? 1 : 0);
   const era = idiv(y >= 0 ? y : y - 399, 400);
@@ -70,7 +71,7 @@ export function daysFromCivil(year: number, month: number, day: number): number 
   return era * 146097 + doe - 719468;
 }
 
-/** 通日から暦日に戻す。 */
+/** Converts a day number back to a civil date. */
 export function civilFromDays(days: number): CivilDate {
   const z = days + 719468;
   const era = idiv(z >= 0 ? z : z - 146096, 146097);
@@ -89,8 +90,8 @@ export function toDays(date: CivilDate): number {
 }
 
 /**
- * 曜日。1970-01-01 は木曜なので、通日 0 が 4（木）になるよう寄せる。
- * 剰余を2回取っているのは負の通日でも 0..6 に収めるため。
+ * Day of week. 1970-01-01 was a Thursday, so day number 0 maps to 4 (Thu).
+ * The double modulo keeps negative day numbers in the 0..6 range too.
  */
 export function weekdayFromDays(days: number): Weekday {
   return (((days + 4) % 7) + 7) % 7 as Weekday;
@@ -109,7 +110,7 @@ export function addDays(date: CivilDate, count: number): CivilDate {
   return civilFromDays(toDays(date) + count);
 }
 
-/** a < b なら負、a > b なら正、同日なら 0。 */
+/** Negative if a < b, positive if a > b, zero if they're the same date. */
 export function compareCivil(a: CivilDate, b: CivilDate): number {
   if (a.year !== b.year) return a.year - b.year;
   if (a.month !== b.month) return a.month - b.month;
@@ -120,7 +121,7 @@ export function isSameCivil(a: CivilDate, b: CivilDate): boolean {
   return compareCivil(a, b) === 0;
 }
 
-/** `YYYY-MM-DD` 形式に整形する。 */
+/** Formats as `YYYY-MM-DD`. */
 export function toIsoDate(date: CivilDate): string {
   const year = String(date.year).padStart(4, '0');
   const month = String(date.month).padStart(2, '0');
@@ -129,8 +130,8 @@ export function toIsoDate(date: CivilDate): string {
 }
 
 /**
- * その月の第 n 週の指定曜日（例: 9月第3月曜）。
- * ハッピーマンデーの祝日算出に使う。
+ * The nth occurrence of a given weekday in a month (e.g. the 3rd Monday of
+ * September). Used to compute "Happy Monday" holidays.
  */
 export function nthWeekdayOfMonth(
   year: number,

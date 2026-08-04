@@ -1,39 +1,41 @@
 /**
- * 公開APIが受け取る日付入力を、内部表現の `CivilDate` に正規化する。
+ * Normalizes the date input accepted by the public API into the internal
+ * `CivilDate` representation.
  *
- * **タイムゾーンの扱いはここに集約されている。** `Date`（＝ある瞬間）を
- * 受け取ったときだけ「その瞬間を JST で見た日付」に落とす。それ以外の
- * 入力（暦日文字列・オブジェクト）はもともとタイムゾーンを持たないので
- * そのまま暦日として扱う。
+ * **All timezone handling is centralized here.** Only when a `Date` (i.e.
+ * an instant) is given is it converted to "the date as seen in JST". Every
+ * other input (a calendar-date string or object) has no timezone to begin
+ * with, so it's treated as a civil date as-is.
  */
 
 import { civilFromDays, isValidCivil, type CivilDate } from './civil.js';
 import { InvalidDateInputError } from './errors.js';
 
-/** JST は UTC+9 固定。日本には夏時間がないので、この定数で足りる。 */
+/** JST is a fixed UTC+9; Japan has no daylight saving time, so this constant suffices. */
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const MS_PER_DAY = 86_400_000;
 
 /**
- * 受け付ける日付入力。
+ * Date input accepted by the public API.
  *
- * - `CivilDate` — `{ year, month, day }`。タイムゾーンの概念なし。
- * - `string` — `YYYY-MM-DD` は暦日としてそのまま解釈する。
- *   時刻やオフセットを含む ISO 8601 文字列（`2019-05-01T00:00:00Z` など）は
- *   「瞬間」として解釈し、JST に変換してから日付を取る。
- * - `Date` — 瞬間。JST に変換してから日付を取る。
+ * - `CivilDate` — `{ year, month, day }`. Has no notion of timezone.
+ * - `string` — `YYYY-MM-DD` is interpreted as a civil date as-is.
+ *   An ISO 8601 string with a time or offset (e.g. `2019-05-01T00:00:00Z`)
+ *   is interpreted as an instant, converted to JST, and then reduced to a date.
+ * - `Date` — an instant. Converted to JST and then reduced to a date.
  */
 export type DateInput = CivilDate | string | Date;
 
 const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-/** 瞬間（epoch ミリ秒）を JST の暦日に落とす。 */
+/** Reduces an instant (epoch milliseconds) to a civil date in JST. */
 export function civilFromInstant(epochMs: number): CivilDate {
   if (!Number.isFinite(epochMs)) {
-    throw new InvalidDateInputError(`日付として解釈できない値: ${String(epochMs)}`);
+    throw new InvalidDateInputError(`Value cannot be interpreted as a date: ${String(epochMs)}`);
   }
-  // UTC の瞬間を +9h ずらしてから日単位で切り捨てる。floor なので
-  // 1970年より前（負の通日）でも正しく前日側に丸まる。
+  // Shift the UTC instant by +9h, then truncate to whole days. Using floor
+  // means instants before 1970 (negative day numbers) round to the
+  // correct preceding day.
   return civilFromDays(Math.floor((epochMs + JST_OFFSET_MS) / MS_PER_DAY));
 }
 
@@ -51,7 +53,7 @@ export function toCivilDate(input: DateInput): CivilDate {
   if (input instanceof Date) {
     const epochMs = input.getTime();
     if (Number.isNaN(epochMs)) {
-      throw new InvalidDateInputError('Invalid Date が渡された。');
+      throw new InvalidDateInputError('An invalid Date was given.');
     }
     return civilFromInstant(epochMs);
   }
@@ -63,17 +65,17 @@ export function toCivilDate(input: DateInput): CivilDate {
       const month = Number(matched[2]);
       const day = Number(matched[3]);
       if (!isValidCivil(year, month, day)) {
-        throw new InvalidDateInputError(`存在しない日付: ${input}`);
+        throw new InvalidDateInputError(`Date does not exist: ${input}`);
       }
       return { year, month, day };
     }
 
-    // 時刻を含む ISO 8601 は「瞬間」として解釈する。
+    // An ISO 8601 string with a time component is interpreted as an instant.
     const parsed = Date.parse(input);
     if (Number.isNaN(parsed)) {
       throw new InvalidDateInputError(
-        `日付として解釈できない文字列: ${JSON.stringify(input)}。` +
-          `YYYY-MM-DD 形式か ISO 8601 の日時を渡すこと。`,
+        `String cannot be interpreted as a date: ${JSON.stringify(input)}. ` +
+          `Pass a YYYY-MM-DD string or an ISO 8601 date-time.`,
       );
     }
     return civilFromInstant(parsed);
@@ -82,13 +84,13 @@ export function toCivilDate(input: DateInput): CivilDate {
   if (isCivilDateLike(input)) {
     const { year, month, day } = input;
     if (!isValidCivil(year, month, day)) {
-      throw new InvalidDateInputError(`存在しない日付: ${year}-${month}-${day}`);
+      throw new InvalidDateInputError(`Date does not exist: ${year}-${month}-${day}`);
     }
     return { year, month, day };
   }
 
   throw new InvalidDateInputError(
-    `日付として解釈できない値: ${String(input)}。` +
-      `Date / YYYY-MM-DD 文字列 / { year, month, day } のいずれかを渡すこと。`,
+    `Value cannot be interpreted as a date: ${String(input)}. ` +
+      `Pass a Date, a YYYY-MM-DD string, or a { year, month, day } object.`,
   );
 }
