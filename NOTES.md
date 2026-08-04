@@ -82,7 +82,11 @@ npm 公開の直前。ライブラリ・営業日API・和暦・Cloudflare Worke
   **その経路は未検証** — 発火が `workflow_dispatch` / 月次スケジュール限定で、
   かつ公式CSVに差分が出たときしか走らないため、PR の CI では踏めない。
   `persist-credentials` の既定値が `true` のままであることは
-  v7 の `action.yml` で確認済みだが、実際に push が通るかは見ていない。
+  v7 の `action.yml` で確認済み。さらに PR #1 の drift ジョブの実ログで、
+  v7 が `includeIf.gitdir` を `.git/config` に書き、そこから
+  `$RUNNER_TEMP/git-credentials-*.config` を読ませる方式であることを確認した
+  （＝同じジョブの後続ステップの `git push` は資格情報を拾えるはず）。
+  ただし **実際に push を通してはいない**。
   次にこのワークフローが走ったとき（毎月1日 06:00 JST）にログを見る。
   失敗する場合の対処は、Commit and push ステップに
   `env: GH_TOKEN`/明示的な remote URL 設定を足すこと。
