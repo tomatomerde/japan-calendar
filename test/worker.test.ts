@@ -36,8 +36,15 @@ async function expectJsonSuccess(res: Response, cache: CacheTier): Promise<unkno
  * すべてのエラーレスポンスが満たすべき最低限の契約:
  * {error:{type,message}} のエンベロープ形状・content-type・CORS・
  * no-store（エラーがCDNにキャッシュされないこと）を一律に検証する。
+ * `expectedType` を渡した場合は、エラーの分類（例外クラス名）が
+ * クライアントの分岐に使える具体的な値になっていることまで検証する
+ * ---「type はある」だけでなく「type は正しい」を確認するため。
  */
-async function expectJsonError(res: Response, status: number): Promise<{ type: string; message: string }> {
+async function expectJsonError(
+  res: Response,
+  status: number,
+  expectedType?: string,
+): Promise<{ type: string; message: string }> {
   expect(res.status).toBe(status);
   expect(res.headers.get('content-type')).toBe('application/json; charset=utf-8');
   expect(res.headers.get('access-control-allow-origin')).toBe('*');
@@ -46,6 +53,9 @@ async function expectJsonError(res: Response, status: number): Promise<{ type: s
   expect(body.error).toBeTruthy();
   expect(typeof body.error?.type).toBe('string');
   expect(typeof body.error?.message).toBe('string');
+  if (expectedType !== undefined) {
+    expect(body.error?.type).toBe(expectedType);
+  }
   return body.error as { type: string; message: string };
 }
 
@@ -83,7 +93,7 @@ describe('GET /v1/holidays/:year', () => {
   });
 
   it('範囲外の年は 400（500 ではない）', async () => {
-    await expectJsonError(get('/v1/holidays/1800'), 400);
+    await expectJsonError(get('/v1/holidays/1800'), 400, 'OutOfRangeError');
   });
 });
 
@@ -123,14 +133,14 @@ describe('GET /v1/holidays/:date — 単日判定', () => {
   });
 
   it('不正なURLエスケープは 400（500 ではない）', async () => {
-    await expectJsonError(get('/v1/holidays/%'), 400);
-    await expectJsonError(get('/v1/holidays/%zz'), 400);
-    await expectJsonError(get('/v1/holidays/%E0%A4%A'), 400);
+    await expectJsonError(get('/v1/holidays/%'), 400, 'BadRequestError');
+    await expectJsonError(get('/v1/holidays/%zz'), 400, 'BadRequestError');
+    await expectJsonError(get('/v1/holidays/%E0%A4%A'), 400, 'BadRequestError');
   });
 
   it('解釈できない日付文字列は 400', async () => {
-    await expectJsonError(get('/v1/holidays/notadate'), 400);
-    await expectJsonError(get('/v1/holidays/2026-13-01'), 400);
+    await expectJsonError(get('/v1/holidays/notadate'), 400, 'InvalidDateInputError');
+    await expectJsonError(get('/v1/holidays/2026-13-01'), 400, 'InvalidDateInputError');
   });
 });
 
@@ -143,28 +153,34 @@ describe('GET /v1/business-days/add', () => {
   });
 
   it('16進数・指数表記・空白混じりの days は 400', async () => {
-    await expectJsonError(get('/v1/business-days/add?date=2026-01-01&days=0x10'), 400);
-    await expectJsonError(get('/v1/business-days/add?date=2026-01-01&days=1e3'), 400);
-    await expectJsonError(get('/v1/business-days/add?date=2026-01-01&days=%205'), 400);
+    await expectJsonError(get('/v1/business-days/add?date=2026-01-01&days=0x10'), 400, 'BadRequestError');
+    await expectJsonError(get('/v1/business-days/add?date=2026-01-01&days=1e3'), 400, 'BadRequestError');
+    await expectJsonError(get('/v1/business-days/add?date=2026-01-01&days=%205'), 400, 'BadRequestError');
   });
 
   it('必須パラメータの欠落は 400', async () => {
-    await expectJsonError(get('/v1/business-days/add?days=5'), 400);
-    await expectJsonError(get('/v1/business-days/add?date=2026-01-01'), 400);
+    await expectJsonError(get('/v1/business-days/add?days=5'), 400, 'BadRequestError');
+    await expectJsonError(get('/v1/business-days/add?date=2026-01-01'), 400, 'BadRequestError');
   });
 
   it('不正な calendar 値は 400', async () => {
-    await expectJsonError(get('/v1/business-days/add?date=2026-01-01&days=1&calendar=xyz'), 400);
+    await expectJsonError(get('/v1/business-days/add?date=2026-01-01&days=1&calendar=xyz'), 400, 'BadRequestError');
   });
 });
 
 describe('GET /v1/business-days/between', () => {
-  it('正しい営業日数を返す', async () => {
+  it('正しい営業日数を返す（from/to/calendar のエコーも検証）', async () => {
     const body = (await expectJsonSuccess(get('/v1/business-days/between?from=2026-01-01&to=2026-02-01'), 'short')) as {
+      from: string;
+      to: string;
+      calendar: string;
       businessDays: number;
     };
     // src/businessDays.ts の businessDaysBetween を直接呼んだ結果と突き合わせる。
     expect(body.businessDays).toBe(20);
+    expect(body.from).toBe('2026-01-01');
+    expect(body.to).toBe('2026-02-01');
+    expect(body.calendar).toBe('national');
   });
 
   it('calendar パラメータが実際にライブラリへ渡っている（national/bank で結果が変わる）', async () => {
@@ -185,15 +201,36 @@ describe('GET /v1/business-days/between', () => {
 });
 
 describe('GET /v1/wareki', () => {
-  it('改元日の変換', async () => {
+  it('改元日の変換（本体フィールドと4種の formatted すべてを検証）', async () => {
     const body = (await expectJsonSuccess(get('/v1/wareki?date=1989-01-08'), 'long')) as {
-      formatted: { ja: string };
+      era: string;
+      eraRomaji: string;
+      eraAbbr: string;
+      eraYear: number;
+      isGannen: boolean;
+      month: number;
+      day: number;
+      gregorianYear: number;
+      formatted: { ja: string; 'ja-numeric': string; abbr: string; 'abbr-padded': string };
     };
+    // 1989-01-08 は改元当日（平成元年1月8日）。month/day は引き継がれ、
+    // year だけが元号側に切り替わる、という和暦の核心的な仕様の検証を兼ねる。
+    expect(body.era).toBe('平成');
+    expect(body.eraRomaji).toBe('Heisei');
+    expect(body.eraAbbr).toBe('H');
+    expect(body.eraYear).toBe(1);
+    expect(body.isGannen).toBe(true);
+    expect(body.month).toBe(1);
+    expect(body.day).toBe(8);
+    expect(body.gregorianYear).toBe(1989);
     expect(body.formatted.ja).toBe('平成元年1月8日');
+    expect(body.formatted['ja-numeric']).toBe('平成1年1月8日');
+    expect(body.formatted.abbr).toBe('H1.1.8');
+    expect(body.formatted['abbr-padded']).toBe('H01.01.08');
   });
 
   it('対応範囲外は 400', async () => {
-    await expectJsonError(get('/v1/wareki?date=1800-01-01'), 400);
+    await expectJsonError(get('/v1/wareki?date=1800-01-01'), 400, 'UnsupportedWarekiRangeError');
   });
 });
 
@@ -206,13 +243,13 @@ describe('GET /v1/wareki/reverse', () => {
   });
 
   it('month が範囲外なら 400', async () => {
-    await expectJsonError(get('/v1/wareki/reverse?era=令和&year=1&month=13&day=1'), 400);
+    await expectJsonError(get('/v1/wareki/reverse?era=令和&year=1&month=13&day=1'), 400, 'InvalidWarekiDateError');
   });
 });
 
 describe('未知のルート', () => {
   it('404 を返す', async () => {
-    await expectJsonError(get('/nope'), 404);
+    await expectJsonError(get('/nope'), 404, 'NotFound');
   });
 });
 
@@ -255,7 +292,7 @@ describe('HTTP メソッド', () => {
 
   it('GET/HEAD 以外のメソッドは 405 で Allow ヘッダーを持つ', async () => {
     const res = request('/v1/meta', 'POST');
-    await expectJsonError(res, 405);
+    await expectJsonError(res, 405, 'MethodNotAllowed');
     expect(res.headers.get('allow')).toBe('GET, HEAD');
   });
 });

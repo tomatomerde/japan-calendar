@@ -95,6 +95,34 @@ wareki/metaのキャッシュ階層退行・date/categoryフィールド破壊�
 パース）で計算した期待値と突き合わせる。オフセット必須チェックを無効化
 すると全TZで検出することを確認済み。
 
+## 解決済み（Worker専用レビュー第4回、opusで検出した個別ペイロードの盲点5件）
+
+契約チェッカー導入後もレビューを継続。ステータスコード・封筒形状・ヘッダーは
+固まったが、ルート固有のペイロード内容と、エラーの「分類」自体は相変わらず
+未検証だった5件。
+
+1. `GET /v1/wareki` が `formatted.ja` の1フィールドしか検証しておらず、
+   `era`/`eraRomaji`/`eraAbbr`/`eraYear`/`isGannen`/`month`/`day`/
+   `gregorianYear` と残り3種の `formatted` が丸ごと消えても検出できなかった
+   → 1989-01-08（改元当日）の全13フィールドを検証するよう拡張
+2. `/v1/business-days/between` の `from`/`to`/`calendar` エコーが未検証
+   → 追加
+3. `expectJsonError` の `type` が「文字列であること」しか見ておらず、
+   5種類のエラー分類（`OutOfRangeError`/`InvalidDateInputError`/
+   `UnsupportedWarekiRangeError`/`InvalidWarekiDateError`/`BadRequestError`/
+   `NotFound`/`MethodNotAllowed`）を全部 `'Error'` に潰しても検出できな
+   かった → `expectJsonError` に `expectedType` 引数を追加し、全呼び出し
+   箇所で実際のエラークラス名を指定（`wrangler dev` で実測して確認。
+   `wareki/reverse` の month範囲外は当初 `InvalidDateInputError` と予想
+   したが実際は `InvalidWarekiDateError` だったため、テスト実行で発覚し
+   訂正した）
+
+5件とも実際にミューテーションして検出できることを確認済み。あわせて
+1〜3巡目の変異10件を全部再実行し、退行がないことも確認済み
+（`test/worker.test.ts` は 27件のまま、アサーションを強化）。
+
+現時点で opus のレビューにより指摘された Worker まわりの既知の問題はない。
+
 ## 保留中の判断（人間が決める）
 
 - **リポジトリを public にするか / npm に公開するか**
@@ -132,7 +160,7 @@ wareki, calendar, jpx, cloudflare-workers, typescript の12件）。
 | `src/businessDays.ts` | レビュー済み。変異テスト5種すべて検出を確認 |
 | CI / ワークフロー | レビュー済み |
 | パッケージング（型解決） | レビュー済み。`@arethetypeswrong/cli` 4項目green |
-| `worker/index.ts` | レビュー済み。検出9+8件は修正・再検証済み。契約チェッカーで全ルート共通検証済み |
+| `worker/index.ts` | レビュー済み。検出9+8+5件は修正・再検証済み。契約チェッカー+ペイロード詳細まで検証済み |
 | `src/input.ts`（文字列フォールバック） | レビュー済み。TZ混入を修正、掃引テストで網羅的に回帰防止済み |
 
 ## 運用メモ

@@ -157,3 +157,23 @@ Not yet published to npm.
   a sweep confirming offset-less and non-ISO formats are rejected across
   the same date set. Confirmed the sweep fails (3 cases) under every
   tested `TZ` when the offset-requirement check is disabled.
+- `test/worker.test.ts`: a third mutation-testing pass found 5 more gaps,
+  all specific-payload checks the previous round's structural fixes
+  couldn't reach:
+  - `GET /v1/wareki` asserted only `formatted.ja`, so the other 12 fields
+    in the response (`era`, `eraRomaji`, `eraAbbr`, `eraYear`, `isGannen`,
+    `month`, `day`, `gregorianYear`, and 3 of the 4 `formatted` variants)
+    could go stale or disappear entirely without failing a test. Now
+    every field is asserted for the 1989-01-08 era-change case.
+  - `GET /v1/business-days/between`'s `from`/`to`/`calendar` echo fields
+    were never checked, only `businessDays`. Now asserted.
+  - The error envelope's `type` field was only checked for being a
+    string, not for being the *correct* classification -- collapsing
+    every error type to a single constant string passed silently. Added
+    `expectJsonError`'s optional `expectedType` parameter and passed the
+    actual error class name (`OutOfRangeError`, `InvalidDateInputError`,
+    `UnsupportedWarekiRangeError`, `InvalidWarekiDateError`,
+    `BadRequestError`, `NotFound`, `MethodNotAllowed`) at every call site.
+  Confirmed each of the 5 mutations from the review is now caught, and
+  confirmed zero regressions by re-running all mutations from the first
+  three review rounds (10 cases) against the rewritten suite.
