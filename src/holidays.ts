@@ -55,6 +55,29 @@ function isEquinoxConfirmed(year: number): boolean {
   return year >= firstYear && year <= equinoxConfirmedThrough;
 }
 
+/**
+ * Freezes a holiday list before it goes into a cache.
+ *
+ * The per-year results are memoized and the *same* array instance is
+ * handed to every caller, so without this a consumer could corrupt the
+ * cache for the whole process just by doing something ordinary --
+ * `holidaysForYear(y).sort(...)` or `.length = 0` -- and every later
+ * `isHoliday` / `isBusinessDay` call would silently answer from the
+ * damaged data. On Cloudflare Workers that would leak across requests
+ * sharing an isolate. `readonly Holiday[]` only stops this at compile
+ * time, which does nothing for JavaScript consumers.
+ *
+ * The nested `date` and each `Holiday` are frozen too, so a holiday's
+ * name or date can't be rewritten in place either.
+ */
+function freezeHolidays(holidays: readonly Holiday[]): readonly Holiday[] {
+  for (const holiday of holidays) {
+    Object.freeze(holiday.date);
+    Object.freeze(holiday);
+  }
+  return Object.freeze(holidays);
+}
+
 const statutoryCache = new Map<number, readonly Holiday[]>();
 
 /** The statutory holidays for a given year (excludes substitute holidays and national holidays). */
@@ -95,8 +118,9 @@ export function statutoryHolidaysForYear(year: number): readonly Holiday[] {
   }
 
   holidays.sort((a, b) => toDays(a.date) - toDays(b.date));
-  statutoryCache.set(year, holidays);
-  return holidays;
+  const frozen = freezeHolidays(holidays);
+  statutoryCache.set(year, frozen);
+  return frozen;
 }
 
 const yearCache = new Map<number, readonly Holiday[]>();
@@ -131,8 +155,9 @@ export function holidaysForYear(year: number): readonly Holiday[] {
   const all = [...statutoryHolidaysForYear(year), ...derived.filter((h) => h.date.year === year)];
   all.sort((a, b) => toDays(a.date) - toDays(b.date));
 
-  yearCache.set(year, all);
-  return all;
+  const frozen = freezeHolidays(all);
+  yearCache.set(year, frozen);
+  return frozen;
 }
 
 /** Whether the given date is a holiday. Returns a `Holiday` if so, otherwise `null`. */

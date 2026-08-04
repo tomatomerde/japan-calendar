@@ -158,6 +158,41 @@ Workerの変異狩りが収穫逓減に入ったため、これまで「見て�
   **tarball を実際に `npm install` して CJS `require()` と ESM `import`
   の両方から動作確認**（このチェックはそれまで一度も実行されていなかった）
 
+## 解決済み（第6回レビュー: **実バグ発見** — 共有キャッシュの汚染）
+
+テスト網羅性ではなく実装そのものの欠陥。`holidaysForYear` /
+`statutoryHolidaysForYear` はメモ化して**同じ配列インスタンス**を全呼び出し元
+に返すが、凍結していなかったため利用者がキャッシュを破壊できた。ビルド済み
+パッケージに対して実証:
+
+```
+holidaysForYear(2026).length = 0
+  -> isHoliday('2026-09-22')    = null    （本来は国民の休日）
+  -> isBusinessDay('2026-01-01') = true   （本来は元日なので false）
+isHoliday('2027-01-01').name = 'ニセ祝日'
+  -> 以降ずっと 'ニセ祝日' を返す
+```
+
+`holidaysForYear(y).sort(...)` のようなごく普通の操作でも起きる。
+`readonly Holiday[]` はコンパイル時にしか効かないのでJS利用者は無防備、
+Workers では isolate を共有する後続リクエスト全部に波及する。
+
+→ キャッシュ投入前に配列・各 `Holiday`・その `date` を凍結。生成データの
+`OFFICIAL_HOLIDAYS` / `OFFICIAL_META` も凍結（生成スクリプトのテンプレートも
+同時に更新済み）。8種の破壊操作がすべて `TypeError` になり、データが健全な
+ままであることを確認。`test/invariants.test.ts` に回帰テストを追加し、凍結の
+どの層を外しても落ちることを変異テストで確認済み。
+
+### この回で「問題なし」を確認した領域
+
+- `src/civil.ts`: うるう年の100年/400年ルール、nth週計算、曜日オフセットの
+  4変異すべて検出
+- `src/rules/equinox.ts`: 係数の微小変更、`floorDiv`→`trunc` の3変異すべて検出
+- `src/rules/observed.ts`: 振替休日の曜日判定、国民の休日の日曜除外・
+  振替休日との重複チェックの3変異すべて検出
+- キャッシュのメモリ挙動: 全151年で 0.13MB、範囲外の年は `OutOfRangeError`
+  で拒否されるため無制限に増えない
+
 ## 保留中の判断（人間が決める）
 
 - **リポジトリを public にするか / npm に公開するか**

@@ -144,18 +144,21 @@ function renderModule(rows: readonly OfficialHolidayRow[], sha256: string, fetch
 
 import type { OfficialHolidayRow, OfficialMeta } from './official-types.js';
 
-export const OFFICIAL_HOLIDAYS: readonly OfficialHolidayRow[] = [
+// Frozen because both are part of the public API surface: without this a
+// consumer could mutate them in place and change what every later call
+// returns, process-wide.
+export const OFFICIAL_HOLIDAYS: readonly OfficialHolidayRow[] = Object.freeze([
 ${entries}
-];
+]);
 
-export const OFFICIAL_META: OfficialMeta = {
+export const OFFICIAL_META: OfficialMeta = Object.freeze({
   fetchedAt: '${fetchedAt}',
   sourceUrl: '${SOURCE_URL}',
   sha256: '${sha256}',
   firstYear: ${firstYear},
   lastYear: ${lastYear},
   equinoxConfirmedThrough: ${boundary},
-};
+});
 `;
 }
 

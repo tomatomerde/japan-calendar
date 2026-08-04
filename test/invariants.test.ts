@@ -10,7 +10,15 @@
 import { describe, expect, it } from 'vitest';
 import { toIsoDate, weekdayOf, SUNDAY } from '../src/civil.ts';
 import { isBusinessDay } from '../src/businessDays.ts';
-import { holidaysForYear, MAX_SUPPORTED_YEAR, MIN_SUPPORTED_YEAR } from '../src/holidays.ts';
+import {
+  holidaysForYear,
+  isHoliday,
+  statutoryHolidaysForYear,
+  MAX_SUPPORTED_YEAR,
+  MIN_SUPPORTED_YEAR,
+} from '../src/holidays.ts';
+import { OFFICIAL_HOLIDAYS, OFFICIAL_META } from '../src/data/official.ts';
+import type { Holiday } from '../src/types.ts';
 
 describe('invariants across the full supported range', () => {
   it('never produces two holidays on the same date within a year', () => {
@@ -55,5 +63,62 @@ describe('invariants across the full supported range', () => {
       }
     }
     expect(violations).toEqual([]);
+  });
+});
+
+describe('公開する値は凍結されている（共有キャッシュを利用者が壊せない）', () => {
+  // 年ごとの結果はメモ化され、同じ配列インスタンスが全呼び出し元に
+  // 渡る。凍結していないと `holidaysForYear(y).sort(...)` や
+  // `.length = 0` といったごく普通の操作でプロセス全体のキャッシュが
+  // 壊れ、以降の isHoliday / isBusinessDay が壊れたデータを返す。
+  // Workers では isolate を共有するリクエスト間に波及する。
+  // `readonly Holiday[]` はコンパイル時にしか効かず、JS利用者には無力。
+  it('holidaysForYear の返り値は配列も要素も凍結されている', () => {
+    const holidays = holidaysForYear(2026);
+    expect(Object.isFrozen(holidays)).toBe(true);
+    for (const holiday of holidays) {
+      expect(Object.isFrozen(holiday)).toBe(true);
+      expect(Object.isFrozen(holiday.date)).toBe(true);
+    }
+  });
+
+  it('statutoryHolidaysForYear の返り値も凍結されている', () => {
+    const holidays = statutoryHolidaysForYear(2026);
+    expect(Object.isFrozen(holidays)).toBe(true);
+    expect(Object.isFrozen(holidays[0])).toBe(true);
+  });
+
+  it('破壊的な操作はすべて TypeError になる', () => {
+    expect(() => {
+      (holidaysForYear(2026) as Holiday[]).push({} as Holiday);
+    }).toThrow(TypeError);
+    expect(() => {
+      (holidaysForYear(2026) as Holiday[]).length = 0;
+    }).toThrow(TypeError);
+    expect(() => {
+      (holidaysForYear(2026) as Holiday[]).sort();
+    }).toThrow(TypeError);
+    expect(() => {
+      (isHoliday('2026-01-01') as { name: string }).name = 'ニセ祝日';
+    }).toThrow(TypeError);
+    expect(() => {
+      (isHoliday('2026-01-01') as unknown as { date: { day: number } }).date.day = 9;
+    }).toThrow(TypeError);
+  });
+
+  it('破壊を試みたあともデータは健全なまま', () => {
+    try {
+      (holidaysForYear(2026) as Holiday[]).length = 0;
+    } catch {
+      /* 凍結されているので落ちるのが正しい */
+    }
+    expect(holidaysForYear(2026).length).toBeGreaterThan(0);
+    expect(isHoliday('2026-01-01')?.name).toBe('元日');
+    expect(isBusinessDay('2026-01-01')).toBe(false);
+  });
+
+  it('生成データ（OFFICIAL_HOLIDAYS / OFFICIAL_META）も凍結されている', () => {
+    expect(Object.isFrozen(OFFICIAL_HOLIDAYS)).toBe(true);
+    expect(Object.isFrozen(OFFICIAL_META)).toBe(true);
   });
 });

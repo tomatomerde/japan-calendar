@@ -7,7 +7,10 @@
 
 import type { OfficialHolidayRow, OfficialMeta } from './official-types.js';
 
-export const OFFICIAL_HOLIDAYS: readonly OfficialHolidayRow[] = [
+// Frozen because both are part of the public API surface: without this a
+// consumer could mutate them in place and change what every later call
+// returns, process-wide.
+export const OFFICIAL_HOLIDAYS: readonly OfficialHolidayRow[] = Object.freeze([
   ['1955-01-01', '元日'],
   ['1955-01-15', '成人の日'],
   ['1955-03-21', '春分の日'],
@@ -1075,13 +1078,13 @@ export const OFFICIAL_HOLIDAYS: readonly OfficialHolidayRow[] = [
   ['2027-10-11', 'スポーツの日'],
   ['2027-11-03', '文化の日'],
   ['2027-11-23', '勤労感謝の日'],
-];
+]);
 
-export const OFFICIAL_META: OfficialMeta = {
+export const OFFICIAL_META: OfficialMeta = Object.freeze({
   fetchedAt: '2026-08-04T05:24:20.197Z',
   sourceUrl: 'https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv',
   sha256: 'cec37a743c96995cdb9cb52b685c9003634682a9b0e1a640a6b9b96881fe964a',
   firstYear: 1955,
   lastYear: 2027,
   equinoxConfirmedThrough: 2027,
-};
+});

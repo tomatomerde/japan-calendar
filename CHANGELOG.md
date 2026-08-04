@@ -177,6 +177,32 @@ Not yet published to npm.
   Confirmed each of the 5 mutations from the review is now caught, and
   confirmed zero regressions by re-running all mutations from the first
   three review rounds (10 cases) against the rewritten suite.
+- **Memoized results are now frozen.** `holidaysForYear` and
+  `statutoryHolidaysForYear` memoize per year and hand the *same* array
+  instance to every caller, but nothing stopped a consumer from mutating
+  it, which corrupted the cache for the entire process. This was a real
+  defect, not a theoretical one -- demonstrated against the built
+  package:
+
+  ```js
+  holidaysForYear(2026).length = 0;
+  isHoliday('2026-09-22');      // => null   (国民の休日)
+  isBusinessDay('2026-01-01');  // => true   (New Year's Day!)
+
+  isHoliday('2027-01-01').name = 'x';
+  isHoliday('2027-01-01').name; // => 'x', permanently
+  ```
+
+  An ordinary `holidaysForYear(y).sort(...)` did the same thing. The
+  `readonly Holiday[]` return type only stops this at compile time, so
+  JavaScript consumers had no protection at all, and on Cloudflare
+  Workers the damage would leak across every request sharing the isolate.
+  Both cached arrays, every `Holiday` in them, and each holiday's nested
+  `date` are now frozen, as are the generated `OFFICIAL_HOLIDAYS` and
+  `OFFICIAL_META`. All eight mutation attempts now throw `TypeError` and
+  the data stays intact; `test/invariants.test.ts` covers this, and
+  removing any layer of the freezing makes it fail.
+
 - Published source maps pointed at `src/*.ts` files that weren't in the
   tarball (and had no `sourcesContent`), so all 28 of them were dangling:
   a consumer stepping into the library in a debugger got "source not
