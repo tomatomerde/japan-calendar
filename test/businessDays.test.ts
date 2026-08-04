@@ -170,3 +170,51 @@ describe('businessDaysBetween', () => {
     expect(mismatches).toEqual([]);
   });
 });
+
+describe('対応範囲の境界 — 範囲外は黙って誤答せず必ず例外', () => {
+  // 範囲外に踏み出す計算は、例外ではなく「それらしい値」を返すのが
+  // いちばん危険。src/businessDays.ts の assertYearInRange は5箇所あり、
+  // 1つずつ外して実際の出力を比べたところ、3箇所は挙動が変わり（＝必要）、
+  // 2箇所は holidaysForYear 経由で間接的に守られていて冗長だった:
+  //
+  //   必要 : addBusinessDays の開始日     外すと n=0 で範囲外の日をそのまま返す
+  //   必要 : businessDaysBetween の from  外すと 2100-01-01 起点で -23 を返す
+  //   必要 : businessDaysBetween の to    外すと 2100-01-01 終点で 23 を返す
+  //   冗長 : addBusinessDays の歩進中 / isBusinessDay
+  //
+  // 下のケースはこの3箇所を個別に踏むよう選んである。from 側は逆順
+  // （範囲外を始点にする）でないと踏めない。
+  it('境界そのものは受け付ける', () => {
+    expect(() => isBusinessDay('1949-01-01')).not.toThrow();
+    expect(() => isBusinessDay('2099-12-31')).not.toThrow();
+    expect(businessDaysBetween('1949-01-01', '2099-12-31')).toBeGreaterThan(0);
+  });
+
+  it('範囲の外側は OutOfRangeError', () => {
+    expect(() => isBusinessDay('1948-12-31')).toThrow(OutOfRangeError);
+    expect(() => isBusinessDay('2100-01-01')).toThrow(OutOfRangeError);
+  });
+
+  it('addBusinessDays が歩進中に範囲外へ出たら OutOfRangeError', () => {
+    // 開始日は範囲内でも、歩進の途中で外へ出る場合。
+    expect(() => addBusinessDays('2099-12-28', 5)).toThrow(OutOfRangeError);
+    expect(() => addBusinessDays('1949-01-04', -5)).toThrow(OutOfRangeError);
+  });
+
+  it('businessDaysBetween は from/to のどちらが範囲外でも OutOfRangeError', () => {
+    expect(() => businessDaysBetween('1948-12-31', '1949-01-31')).toThrow(OutOfRangeError);
+    // to 側のチェックを踏む。外すと 23 を返す。
+    expect(() => businessDaysBetween('2099-12-01', '2100-01-01')).toThrow(OutOfRangeError);
+    // from 側のチェックを踏む。順方向だと別経路で捕まるため、逆順で確かめる。
+    // 外すと -23 を返す。
+    expect(() => businessDaysBetween('2100-01-01', '2099-12-01')).toThrow(OutOfRangeError);
+  });
+
+  it('addBusinessDays(date, 0) は範囲内なら非営業日でもそのまま返し、範囲外なら投げる', () => {
+    expect(addBusinessDays('2099-12-31', 0)).toEqual({ year: 2099, month: 12, day: 31 });
+    expect(addBusinessDays('1949-01-01', 0)).toEqual({ year: 1949, month: 1, day: 1 });
+    // n=0 は歩進しないので、開始日のチェックだけが範囲外を止めている。
+    expect(() => addBusinessDays('2100-01-01', 0)).toThrow(OutOfRangeError);
+    expect(() => addBusinessDays('1948-12-31', 0)).toThrow(OutOfRangeError);
+  });
+});

@@ -177,6 +177,17 @@ Not yet published to npm.
   Confirmed each of the 5 mutations from the review is now caught, and
   confirmed zero regressions by re-running all mutations from the first
   three review rounds (10 cases) against the rewritten suite.
+- **Range enforcement at the edges of 1949-2099 is now tested.** Removing
+  any of the five `assertYearInRange` calls in `businessDays.ts` left the
+  whole suite green. Three of them turn out to be load-bearing -- without
+  them `addBusinessDays('2100-01-01', 0)` returns that out-of-range date
+  unchanged, and `businessDaysBetween` counts into 2100 and answers `23`
+  (or `-23` with the arguments reversed) instead of throwing. The other
+  two are genuinely redundant, guarded indirectly by `holidaysForYear`.
+  Added boundary tests that exercise each load-bearing check
+  individually; the `from` one needs the range-violating date as the
+  *start* argument, since the forward direction is caught elsewhere.
+
 - **The equinox extrapolation (2028 onward) is now guarded.** The
   official CSV stops at 2027, so `officialMatch.test.ts` structurally
   cannot reach the years users will most often ask about. Demonstrated
