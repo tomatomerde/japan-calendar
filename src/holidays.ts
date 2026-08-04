@@ -42,15 +42,24 @@ function resolveRuleDate(rule: HolidayDefinition['rule'], year: number): { month
   }
 }
 
+/**
+ * Whether the equinox date for `year` has been validated against the
+ * official Cabinet Office data. This requires the year to be within the
+ * data's actual coverage (`firstYear`-`equinoxConfirmedThrough`) -- a year
+ * before `firstYear` may coincidentally match the approximation formula,
+ * but that's unverified extrapolation, not a confirmed fact.
+ */
 function isEquinoxConfirmed(year: number): boolean {
-  const boundary = OFFICIAL_META.equinoxConfirmedThrough;
-  return boundary !== null && year <= boundary;
+  const { firstYear, equinoxConfirmedThrough } = OFFICIAL_META;
+  if (firstYear === null || equinoxConfirmedThrough === null) return false;
+  return year >= firstYear && year <= equinoxConfirmedThrough;
 }
 
 const statutoryCache = new Map<number, readonly Holiday[]>();
 
 /** The statutory holidays for a given year (excludes substitute holidays and national holidays). */
 export function statutoryHolidaysForYear(year: number): readonly Holiday[] {
+  assertYearInRange(year);
   const cached = statutoryCache.get(year);
   if (cached !== undefined) return cached;
 
@@ -104,6 +113,7 @@ const yearCache = new Map<number, readonly Holiday[]>();
  * single year.)
  */
 export function holidaysForYear(year: number): readonly Holiday[] {
+  assertYearInRange(year);
   const cached = yearCache.get(year);
   if (cached !== undefined) return cached;
 
@@ -115,7 +125,8 @@ export function holidaysForYear(year: number): readonly Holiday[] {
     }
   }
 
-  const derived = [...computeSubstituteHolidays(statutory), ...computeBridgeHolidays(statutory)];
+  const substitutes = computeSubstituteHolidays(statutory);
+  const derived = [...substitutes, ...computeBridgeHolidays(statutory, substitutes)];
 
   const all = [...statutoryHolidaysForYear(year), ...derived.filter((h) => h.date.year === year)];
   all.sort((a, b) => toDays(a.date) - toDays(b.date));

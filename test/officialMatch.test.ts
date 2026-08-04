@@ -28,8 +28,16 @@ function toCsvName(holiday: Holiday, iso: string): string {
 }
 
 if (OFFICIAL_META.firstYear === null || OFFICIAL_META.lastYear === null) {
-  describe.skip('公式データ突き合わせ（データ未取得のためスキップ）', () => {
-    it('skipped', () => {});
+  // This is the strongest test in the suite; it must never disappear
+  // silently. `official.ts` only ships without data before the very first
+  // CSV fetch (see scripts/fetch-syukujitsu.ts) -- that bootstrap step has
+  // already happened for this repository, so reaching this branch now
+  // means the generated data file was wiped or corrupted. Fail loudly
+  // rather than skipping.
+  describe('公式データ突き合わせ', () => {
+    it('official.ts にデータが焼き込まれていること', () => {
+      expect(OFFICIAL_META.firstYear, 'src/data/official.ts appears empty. Run node scripts/fetch-syukujitsu.ts to regenerate it.').not.toBeNull();
+    });
   });
 } else {
   const firstYear = OFFICIAL_META.firstYear;

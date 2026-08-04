@@ -78,25 +78,36 @@ export function computeSubstituteHolidays(statutory: readonly StatutoryHoliday[]
 }
 
 /**
- * National holidays. Applies to a day that is a statutory holiday on
- * neither the day itself nor a Sunday, but is preceded and followed by
- * statutory holidays (Public Holiday Law, Article 3, Paragraph 3 —
- * Saturday is not excluded).
+ * National holidays. Applies to a day that is neither a statutory holiday
+ * nor already a substitute holiday, is not a Sunday, but is preceded and
+ * followed by statutory holidays (Public Holiday Law, Article 3, Paragraph
+ * 3 — Saturday is not excluded).
+ *
+ * `substitutes` must be `computeSubstituteHolidays(statutory)` (or a
+ * superset covering the same period). It's needed because a substitute
+ * holiday is a *derived* holiday, not itself part of `statutory` — without
+ * checking it explicitly, a day that's already a substitute holiday could
+ * also get counted as a sandwiched national holiday. This is exercised by
+ * 1987/1992/1998, where Constitution Memorial Day (5/3) falls on a Sunday:
+ * without this check, 5/4 would be produced twice, once as a substitute
+ * holiday (for the Sunday) and once as a national holiday (sandwiched
+ * between 5/3 and 5/5).
  */
-export function computeBridgeHolidays(statutory: readonly StatutoryHoliday[]): Holiday[] {
+export function computeBridgeHolidays(
+  statutory: readonly StatutoryHoliday[],
+  substitutes: readonly Holiday[],
+): Holiday[] {
   const index = makeIndex(statutory);
+  const isSubstitute = (date: CivilDate): boolean => substitutes.some((h) => isSameCivil(h.date, date));
   const result: Holiday[] = [];
 
   for (const holiday of statutory) {
     if (isBefore(holiday.date, BRIDGE_RULE_FROM)) continue;
-    // If the preceding holiday falls on a Sunday, the following day is
-    // already a holiday via the substitute-holiday rule. That fails the
-    // national-holiday requirement of "a non-holiday sandwiched between
-    // holidays", so skip it.
-    if (weekdayOf(holiday.date) === SUNDAY) continue;
 
     const candidate = addDays(holiday.date, 1);
-    if (index.has(candidate)) continue; // If the next day is also a holiday, it's a holiday in its own right, not a sandwiched weekday.
+    // If the next day is already a holiday (statutory or substitute), it's
+    // a holiday in its own right, not a non-holiday sandwiched between two others.
+    if (index.has(candidate) || isSubstitute(candidate)) continue;
 
     const dayAfterCandidate = addDays(candidate, 1);
     if (!index.has(dayAfterCandidate)) continue; // Not sandwiched.
