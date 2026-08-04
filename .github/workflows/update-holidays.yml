@@ -39,6 +39,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
 
       - name: Fetch the Cabinet Office CSV and regenerate src/data/official.ts
         id: fetch
@@ -67,19 +68,24 @@ jobs:
             git --no-pager diff --stat -- src/data/official.ts
           fi
 
-      # Runs the full suite -- most importantly officialMatch.test.ts --
-      # against the freshly regenerated data, before anything gets pushed.
-      # This is the only thing standing between a bad or unexpected CSV
-      # (a new holiday name format, a corrupted fetch, ...) and main; the
-      # PR opened below still goes through the normal pull_request CI, but
-      # by then the bad data would already be sitting on a pushed branch.
+      # Runs the suite -- most importantly officialMatch.test.ts -- against
+      # the freshly regenerated data, before anything gets pushed. This is
+      # the only thing standing between a bad or unexpected CSV (a new
+      # holiday name format, a corrupted fetch, ...) and main; the PR
+      # opened below still goes through the normal pull_request CI, but by
+      # then the bad data would already be sitting on a pushed branch.
+      #
+      # Excludes test/performance.test.ts: it asserts on wall-clock timing,
+      # which depends on the runner's hardware/load, not on the data being
+      # updated here. A slow runner shouldn't be able to block a routine
+      # data update; that assertion still runs on every push/PR via CI (ci.yml).
       - name: Install dependencies
         if: steps.diff.outputs.changed == 'true'
         run: npm ci
 
       - name: Test the regenerated data against the rule engine
         if: steps.diff.outputs.changed == 'true'
-        run: npm test
+        run: npx vitest run $(ls test/*.test.ts | grep -v performance.test.ts)
 
       - name: Commit and push
         if: steps.diff.outputs.changed == 'true'

@@ -38,14 +38,22 @@ Not yet published to npm.
   supported range (`businessDaysBetween('1949-01-01', '2099-12-31')`) --
   the kind of input a public HTTP API has to expect -- takes a fraction
   of a millisecond instead of ~25ms, comfortably inside a Cloudflare
-  Workers request's CPU budget.
+  Workers request's CPU budget. The closed-form path is covered for both
+  calendars by a full sweep of every supported year in
+  `test/businessDays.test.ts` against a naive day-by-day reference.
+  (Mutation-testing the initial implementation found that the existing
+  test cases -- all spanning 0-1 years -- never actually exercised this
+  code path; a full year-range sweep was added to close that gap. No
+  incorrect result ever shipped, but nothing would have caught one.)
 - Wareki (Japanese era) conversion: `toWareki`, `fromWareki`,
   `formatWareki`, covering Meiji 6-1-1 (1873-01-01) onward.
 - A script (`scripts/fetch-syukujitsu.ts`) that fetches the Cabinet
   Office's `syukujitsu.csv` and bakes it into `src/data/official.ts`. A
-  GitHub Actions workflow runs it monthly, runs the full test suite
-  against the freshly fetched data, and -- only if that passes -- pushes
-  the diff and opens a pull request.
+  GitHub Actions workflow runs it monthly, runs the test suite (every
+  file except `test/performance.test.ts`, whose wall-clock assertions
+  depend on the runner's hardware/load rather than the data) against the
+  freshly fetched data, and -- only if that passes -- pushes the diff and
+  opens a pull request.
 - A test suite that checks the rule engine's output against every date
   in the official data (1955 through the latest year covered);
   `test/officialMatch.test.ts` fails loudly (rather than skipping) if

@@ -144,32 +144,29 @@ describe('businessDaysBetween', () => {
     }
   });
 
-  it('対応範囲の全域でも素朴な日単位実装よりずっと高速（O(年数)であることの担保）', () => {
-    // 絶対時間の閾値はCI環境の速度でブレるため使わない。代わりに、同じ
-    // フルレンジ問い合わせを素朴な日単位実装と比較し、十分に高速である
-    // ことを相対的に確認する。O(日数)に戻る回帰が起きれば、この比は
-    // 1に近づく（=対象実装も遅くなる）ため検出できる。
-    //
-    // 両実装は holidaysForYear の結果をモジュール内で共有キャッシュする
-    // ため、先に呼んだ方が後に呼ぶ方のキャッシュを温めてしまい、
-    // 素朴実装が不当に速く見える。両方を一度ずつ呼んでキャッシュを
-    // 温めてから、warm な状態で計測する。
-    const from = toIsoDate({ year: MIN_SUPPORTED_YEAR, month: 1, day: 1 });
-    const to = toIsoDate({ year: MAX_SUPPORTED_YEAR, month: 12, day: 31 });
-
-    businessDaysBetween(from, to, 'national');
-    naiveBetween(from, to, 'national');
-
-    const fastStart = performance.now();
-    const fastResult = businessDaysBetween(from, to, 'national');
-    const fastMs = performance.now() - fastStart;
-
-    const naiveStart = performance.now();
-    const naiveResult = naiveBetween(from, to, 'national');
-    const naiveMs = performance.now() - naiveStart;
-
-    expect(fastResult).toBe(naiveResult);
-    expect(fastResult).toBeGreaterThan(0);
-    expect(fastMs).toBeLessThan(naiveMs / 5);
+  /**
+   * businessDaysBetween は、区間が2つ以上の暦年をまたぐとき
+   * fullYearBusinessDayCount（閉形式の年間営業日数）を使う。上の
+   * テストケースはどれも「区間の年差が0か1」で、このパスを一度も
+   * 通らない（fullYearBusinessDayCount が完全年に対して呼ばれるのは
+   * 年差が2以上のときだけ）。その状態で fullYearBusinessDayCount の
+   * 'bank' 分岐をまるごと無効化しても全テストが通ることを確認済みで、
+   * このテストはそのカバレッジの穴を塞ぐためにある。
+   *
+   * 対応範囲の全ての年について「その年をちょうど1つだけ完全に含む
+   * 2年区間」を素朴な日単位実装と突き合わせる。
+   */
+  it('完全な暦年を含む区間で素朴な実装と一致する（全年・両カレンダー）', () => {
+    const mismatches: string[] = [];
+    for (let year = MIN_SUPPORTED_YEAR; year <= MAX_SUPPORTED_YEAR - 2; year += 1) {
+      const from = toIsoDate({ year, month: 6, day: 15 });
+      const to = toIsoDate({ year: year + 2, month: 6, day: 15 });
+      for (const calendar of ['national', 'bank'] as const) {
+        const fast = businessDaysBetween(from, to, calendar);
+        const slow = naiveBetween(from, to, calendar);
+        if (fast !== slow) mismatches.push(`${from} -> ${to} (${calendar}): fast=${fast} naive=${slow}`);
+      }
+    }
+    expect(mismatches).toEqual([]);
   });
 });
