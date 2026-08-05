@@ -9,7 +9,7 @@
  */
 
 import { civilFromDays, isValidCivil, type CivilDate } from './civil.js';
-import { InvalidDateInputError } from './errors.js';
+import { InvalidDateInputError, describeValue } from './errors.js';
 
 /** JST is a fixed UTC+9; Japan has no daylight saving time, so this constant suffices. */
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -112,8 +112,11 @@ export function toCivilDate(input: DateInput): CivilDate {
     return { year, month, day };
   }
 
+  // describeValue, not String(): every object stringifies to "[object Object]",
+  // which tells someone who passed a near-miss shape -- `{ y, m, d }` instead of
+  // `{ year, month, day }` -- nothing at all about what was wrong.
   throw new InvalidDateInputError(
-    `Value cannot be interpreted as a date: ${String(input)}. ` +
+    `Value cannot be interpreted as a date: ${describeValue(input)}. ` +
       `Pass a Date, a YYYY-MM-DD string, or a { year, month, day } object.`,
   );
 }

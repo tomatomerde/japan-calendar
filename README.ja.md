@@ -126,6 +126,41 @@ isHoliday('2026-9-22');            // ✗ InvalidDateInputError — ゼロ埋め
 答えも違う。曖昧な入力を推測で通さず拒否する方針とした。暦日を指したい
 なら `YYYY-MM-DD` を、瞬間を指したいならオフセットを付けて渡す。
 
+### 日付以外の引数も検証する
+
+同じ方針をすべての引数に適用している。誤った引数は、それらしい答えを返さず
+`InvalidArgumentError` を投げる:
+
+```ts
+isBusinessDay('2026-12-31', 'Bank');   // ✗ InvalidArgumentError — 'national' | 'bank' のみ
+addBusinessDays('2026-08-03', NaN);    // ✗ InvalidArgumentError — days は安全整数
+addBusinessDays('2026-08-03', 1.5);    // ✗ InvalidArgumentError
+holidaysForYear(2026.5);               // ✗ InvalidArgumentError — 年は整数
+formatWareki(w, 'JA');                 // ✗ InvalidArgumentError — 未知の形式
+```
+
+これが効くのは主に素の JavaScript から使う場合と、TypeScript でも値が JSON・
+クエリパラメータ・フォーム入力から `string` として来る場合で、型注釈は実行時には
+存在しない。特に危険なのは `'Bank'` のような大文字小文字の取り違えで、
+これは bank カレンダーではない。national の答えを返せば、
+**自信を持って間違った答えを返す**ことになる。
+
+### エラー
+
+すべての例外は `JapanCalendarError` を継承するので、1つの `catch` で捕まえられる。
+
+| エラー | 発生条件 |
+|---|---|
+| `InvalidDateInputError` | 日付引数を解釈できない、または存在しない日を指している |
+| `InvalidArgumentError` | 日付以外の引数の型が違う、または許容値でない |
+| `OutOfRangeError` | 日付が 1949–2099年の外 |
+| `UnsupportedWarekiRangeError` | 明治6年1月1日（1873-01-01）より前の和暦変換 |
+| `MeijiReformError` | 明治5年12月3–31日。1873年の改暦で消えた29日間 |
+| `InvalidWarekiDateError` | その元号の期間外の和暦日付（例: 昭和64年1月8日） |
+
+`isHoliday` は、単にその日が祝日でない場合は例外ではなく `null` を返す。
+例外を投げるのは入力そのものが使えないときだけ。
+
 ### 春分の日・秋分の日の近似式について
 
 `src/rules/equinox.ts` の近似式は、内閣府の公式データ（1955〜2027年、

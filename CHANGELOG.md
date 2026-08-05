@@ -12,6 +12,40 @@ Not yet published to npm.
 
 ### Added
 
+- `InvalidArgumentError` for non-date arguments whose type or value isn't
+  accepted, alongside the existing date-specific errors. Like the others it
+  extends `JapanCalendarError`, so a single `catch` still covers everything.
+
+### Fixed
+
+- Arguments other than dates were not validated, so several ordinary
+  mistakes produced a confident wrong answer instead of an error. Every one
+  of these now throws `InvalidArgumentError`:
+  - A mistyped `CalendarKind` fell through to the national calendar.
+    `isBusinessDay('2026-12-31', 'Bank')` returned `true`, while the
+    correct `'bank'` returns `false` — a capitalization slip silently
+    changed the answer. It also let an HTTP caller grow
+    `businessDaysBetween`'s per-calendar year cache without bound, since
+    the cache key embeds the calendar name.
+  - `addBusinessDays`'s day count accepted anything. `NaN` and `undefined`
+    behaved like `0` and returned the input date unchanged, `1.5` moved two
+    business days, and the string `'3'` worked by coercion.
+  - `assertYearInRange` compared against the bounds before checking the
+    type, and every comparison with `NaN` is false — so `holidaysForYear(NaN)`
+    passed the range check, computed a holiday list, and memoized it under
+    the key `NaN`. `2026.5` and the string `'2026'` got through the same way.
+  - `formatWareki`'s `switch` had no default branch, so an unrecognized
+    format returned `undefined` despite the declared `string` return type,
+    putting the literal text `undefined` into whatever the caller rendered.
+    A hand-built object missing `eraYear` produced `'令和undefined年5月1日'`
+    for the same reason.
+- Error messages for an unusable value rendered every object as
+  `[object Object]`, which told someone who passed `{ y, m, d }` instead of
+  `{ year, month, day }` nothing about what was wrong. They now show the
+  value itself.
+
+### Added
+
 - Holiday judgment (`isHoliday`) implementing the Public Holiday Law and
   its amendments, Happy Monday holidays, the Vernal/Autumnal Equinox Day
   approximation formula, substitute holidays, national holidays, one-off

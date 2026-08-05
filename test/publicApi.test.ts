@@ -36,6 +36,7 @@ const EXPECTED_EXPORTS = [
   'civilFromInstant',
   'toCivilDate',
   // errors.ts
+  'InvalidArgumentError',
   'InvalidDateInputError',
   'InvalidWarekiDateError',
   'JapanCalendarError',

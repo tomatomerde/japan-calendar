@@ -19,10 +19,12 @@ import {
   type CivilDate,
 } from './civil.js';
 import {
+  InvalidArgumentError,
   InvalidDateInputError,
   InvalidWarekiDateError,
   MeijiReformError,
   UnsupportedWarekiRangeError,
+  describeValue,
 } from './errors.js';
 import { toCivilDate, type DateInput } from './input.js';
 
@@ -161,7 +163,49 @@ export function toWareki(input: DateInput): Wareki {
   };
 }
 
+/**
+ * Guards the two ways `formatWareki` used to emit a plausible-looking but
+ * wrong string instead of failing.
+ *
+ * A hand-built object -- the natural thing to try when you have the pieces
+ * already and don't want a round trip through `toWareki` -- lacks
+ * `eraYear`/`eraAbbr`, and template interpolation happily rendered
+ * `'令和undefined年5月1日'`. Since the point of this function is to produce
+ * text a human reads, a wrong string is worse than an exception.
+ */
+function assertWareki(wareki: Wareki, format: WarekiFormat): void {
+  if (typeof wareki !== 'object' || wareki === null) {
+    throw new InvalidArgumentError(`wareki must be a Wareki object: ${describeValue(wareki)}`);
+  }
+  const required: (keyof Wareki)[] =
+    format === 'abbr' || format === 'abbr-padded'
+      ? ['eraAbbr', 'eraYear', 'month', 'day']
+      : ['era', 'eraYear', 'month', 'day'];
+  for (const field of required) {
+    const value = wareki[field];
+    const ok = field === 'era' || field === 'eraAbbr' ? typeof value === 'string' : Number.isInteger(value);
+    if (!ok) {
+      throw new InvalidArgumentError(
+        `wareki.${field} is missing or invalid: ${describeValue(value)}. ` +
+          `Build the object with toWareki() rather than by hand.`,
+      );
+    }
+  }
+}
+
 export function formatWareki(wareki: Wareki, format: WarekiFormat = 'ja'): string {
+  // Without a default branch this switch falls off the end and returns
+  // `undefined` for an unrecognized format, despite the `string` return type
+  // -- so a typo'd format silently rendered the literal text "undefined" into
+  // whatever UI the caller was building.
+  if (format !== 'ja' && format !== 'ja-numeric' && format !== 'abbr' && format !== 'abbr-padded') {
+    throw new InvalidArgumentError(
+      `Unknown wareki format: ${describeValue(format)}. ` +
+        `Pass one of 'ja', 'ja-numeric', 'abbr', 'abbr-padded'.`,
+    );
+  }
+  assertWareki(wareki, format);
+
   switch (format) {
     case 'ja':
       return `${wareki.era}${wareki.isGannen ? '元' : String(wareki.eraYear)}年${wareki.month}月${wareki.day}日`;

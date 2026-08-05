@@ -139,6 +139,42 @@ library a different day can mean a different answer. Rather than guess,
 the library refuses the ambiguous input: pass a plain `YYYY-MM-DD` string
 if you mean a calendar date, or add an offset if you mean an instant.
 
+### Other arguments are checked too
+
+The same rule applies to every argument, not just dates. A wrong argument
+raises `InvalidArgumentError` rather than producing a plausible answer:
+
+```ts
+isBusinessDay('2026-12-31', 'Bank');   // ✗ InvalidArgumentError — only 'national' | 'bank'
+addBusinessDays('2026-08-03', NaN);    // ✗ InvalidArgumentError — days must be a safe integer
+addBusinessDays('2026-08-03', 1.5);    // ✗ InvalidArgumentError
+holidaysForYear(2026.5);               // ✗ InvalidArgumentError — year must be an integer
+formatWareki(w, 'JA');                 // ✗ InvalidArgumentError — unknown format
+```
+
+This matters most from plain JavaScript, and from TypeScript whenever the
+value arrives as a `string` from JSON, a query parameter, or a form field —
+the type annotation isn't there at runtime. A capitalization slip like
+`'Bank'` is the dangerous case: it isn't the bank calendar, and answering
+as if it were the national one would be a wrong answer delivered with
+confidence.
+
+### Errors
+
+Every exception extends `JapanCalendarError`, so one `catch` covers them all.
+
+| Error | Raised when |
+|---|---|
+| `InvalidDateInputError` | A date argument can't be interpreted, or names a day that doesn't exist |
+| `InvalidArgumentError` | A non-date argument has the wrong type or isn't an accepted value |
+| `OutOfRangeError` | A date is outside 1949–2099 |
+| `UnsupportedWarekiRangeError` | A wareki conversion before Meiji 6-1-1 (1873-01-01) |
+| `MeijiReformError` | Meiji 5, month 12, days 3–31 — the 29 days the 1873 reform removed |
+| `InvalidWarekiDateError` | A wareki date outside its own era's span, e.g. Shōwa 64-1-8 |
+
+`isHoliday` returns `null` rather than throwing when the date is simply not
+a holiday; it throws only when the input itself is unusable.
+
 ### About the equinox approximation formula
 
 The approximation formula in `src/rules/equinox.ts` has been verified

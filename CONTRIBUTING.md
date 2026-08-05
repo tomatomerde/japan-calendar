@@ -85,6 +85,19 @@ reintroduce a bug that was deliberately fixed.
   into `d`, `u`, and `y`. For the same reason `worker/index.ts` uses
   `error.name`, not `error.constructor.name`. `test/errors.test.ts` runs
   a real minifier, because nothing else can catch a regression here.
+- **Every public entry point validates its non-date arguments too.**
+  `assertCalendarKind`, `assertDayCount`, the `Number.isInteger` check at
+  the top of `assertYearInRange`, and `formatWareki`'s format/shape guards
+  all exist because the unguarded versions returned a *plausible wrong
+  answer* instead of failing: `'Bank'` silently meant the national
+  calendar, `NaN` days silently meant zero days, `holidaysForYear(NaN)`
+  computed and memoized a holiday list for a year that doesn't exist, and
+  an unknown format rendered the literal text `undefined`. TypeScript does
+  not cover any of this — most consumers of a published package call it
+  from JavaScript, and even in TypeScript these values routinely arrive as
+  a plain `string` from JSON or a form. The type signatures are a
+  convenience, not the check. `test/argumentValidation.test.ts` pins each
+  guard, and each one has been verified to fail the suite when removed.
 - **The data fetch must refuse to shrink.** `assertNoRegression` in
   `scripts/fetch-syukujitsu.ts` compares against the committed
   `OFFICIAL_META`. Without it, an upstream file republished without its

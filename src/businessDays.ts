@@ -19,10 +19,47 @@ import {
   type CivilDate,
   type Weekday,
 } from './civil.js';
+import { InvalidArgumentError, describeValue } from './errors.js';
 import { assertYearInRange, holidaysForYear } from './holidays.js';
 import { toCivilDate, type DateInput } from './input.js';
 
 export type CalendarKind = 'national' | 'bank';
+
+/**
+ * Rejects anything that isn't exactly `'national'` or `'bank'`.
+ *
+ * TypeScript alone doesn't cover this: most consumers of a published package
+ * call it from plain JavaScript, and even in TypeScript the value often
+ * arrives from JSON or a form field as a plain `string`. Before this check a
+ * mistyped `'Bank'` fell through to the national calendar and returned a
+ * confident wrong answer -- `isBusinessDay('2026-12-31', 'Bank')` was `true`
+ * while `'bank'` was `false`.
+ *
+ * It also keeps garbage out of `yearCountCache`, whose key embeds the
+ * calendar name; an HTTP caller passing arbitrary values would otherwise
+ * grow that map without bound for the life of the isolate.
+ */
+function assertCalendarKind(calendar: CalendarKind): void {
+  if (calendar !== 'national' && calendar !== 'bank') {
+    throw new InvalidArgumentError(
+      `calendar must be 'national' or 'bank': ${describeValue(calendar)}`,
+    );
+  }
+}
+
+/**
+ * Rejects a day count that isn't a safe integer.
+ *
+ * `Number.isSafeInteger` covers the cases that used to pass silently:
+ * `NaN` and `undefined` behaved like `0` (returning the input date
+ * unchanged), `1.5` moved two business days, and `'3'` worked by
+ * coincidence of `>` and `-= 1` coercing.
+ */
+function assertDayCount(n: number): void {
+  if (!Number.isSafeInteger(n)) {
+    throw new InvalidArgumentError(`days must be a safe integer: ${describeValue(n)}`);
+  }
+}
 
 const holidayDaysCache = new Map<number, ReadonlySet<number>>();
 
@@ -48,6 +85,7 @@ function isBusinessDayCivil(date: CivilDate, days: number, calendar: CalendarKin
 }
 
 export function isBusinessDay(input: DateInput, calendar: CalendarKind = 'national'): boolean {
+  assertCalendarKind(calendar);
   const date = toCivilDate(input);
   assertYearInRange(date.year);
   return isBusinessDayCivil(date, toDays(date), calendar);
@@ -59,6 +97,8 @@ export function isBusinessDay(input: DateInput, calendar: CalendarKind = 'nation
  * itself a business day.
  */
 export function addBusinessDays(input: DateInput, n: number, calendar: CalendarKind = 'national'): CivilDate {
+  assertCalendarKind(calendar);
+  assertDayCount(n);
   const start = toCivilDate(input);
   assertYearInRange(start.year);
   if (n === 0) return start;
@@ -141,6 +181,7 @@ function countBusinessDaysInDayRange(lo: number, hi: number, calendar: CalendarK
  * Negative if `to < from`. `0` if `from === to`.
  */
 export function businessDaysBetween(from: DateInput, to: DateInput, calendar: CalendarKind = 'national'): number {
+  assertCalendarKind(calendar);
   const fromDate = toCivilDate(from);
   const toDate = toCivilDate(to);
   assertYearInRange(fromDate.year);
