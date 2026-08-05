@@ -43,7 +43,8 @@ main へマージ済み。**コード上の未処理の指摘は現在ない。*
    未設定時に notice を出してスキップする。未設定のまま `actions/checkout`
    にトークンを渡すとジョブが hard-fail するため）。当リポジトリの
    `.github/workflows/check-claude-md-drift.yml` に取り込み済み。
-   **`actions/checkout` は当リポジトリ側の v7 を維持**（原本の例はまだ v4）。
+   **`actions/checkout` は当リポジトリ側の v7 を維持**（原本の例は v4 のまま
+   だったので、原本側にも dev-standards PR #5 を出してある）。
    `CLAUDE.md` の共通部分は原本 8776609 と完全一致（差分なし）で、
    1行目の原本参照 SHA を更新した
 2. PR #2 のレビューで見送っていた `describeValue` の2件を処理:
@@ -122,23 +123,26 @@ GitHub Actions 上でも実際に走らせて確認した（2026-08-05）:
   設定内容（owner=tomatomerde / repo=dev-standards / Contents: Read-only）は
   再生成しても引き継がれるので作り直す必要はない。
 
-- **使い捨て検証ブランチ2本を消す（このセッションの後始末）**
-  `chore/tmp-verify-v7` と `chore/tmp-verify-target`。下記「checkout v7 での
-  push」を実機確認するために作ったもので、中身に価値はない。
-  **このセッションのプロキシは ref の削除を 403 で拒否するため消せなかった。**
-  手元で:
-
-  ```sh
-  git push origin --delete chore/tmp-verify-v7 chore/tmp-verify-target
-  ```
-
-- **dev-standards 側へ `actions/checkout` v7 を戻す**
-  原本の `examples/check-claude-md-drift.yml` はまだ `actions/checkout@v4`。
-  当リポジトリは PR #1 で v7 に上げてあり、今回の同期でもそちらを維持した。
-  原本を直さないと、次に別案件へコピーしたときに v4 に戻る。
-  dev-standards は別リポジトリなので、このセッションからは PR を出していない。
+- **dev-standards の PR #5 をマージする**（v7 back-port）
+  原本の `examples/check-claude-md-drift.yml` を `actions/checkout@v4` →
+  `@v7` にする2行の変更。原本を直さないと、次に別案件へコピーしたときに
+  v4 に戻る。PR は出してある。
 
 GitHub の Topics は設定済み（API で確認済み、12件）。
+
+## dev-standards の open PR #4 に依存する持ち越し
+
+原本に「公開案件を見据えた共通部分の見直し」という未マージの PR がある。
+**マージされたら、このリポジトリでも追随作業が発生する**:
+
+1. `CLAUDE.md` の共通部分が原本からずれるので、再同期して1行目の SHA を
+   更新する（`drift` ジョブが警告を出すが fail はしない）
+2. 原本側の変更に **`Claude-Session:` トレーラを付けない**というルールが
+   入っている。このリポジトリの過去のコミットには付いているものがあるが、
+   マージ済み履歴は遡らない方針なので、以後の新規コミットから守れば足りる
+
+順序としては **japan-calendar の PR #3 を先にマージ → その後 dev-standards の
+#4 / #5** が手戻りが少ない。逆順だと #3 の CI で drift 警告が出て紛らわしい。
 
 ## レビュー状況
 
