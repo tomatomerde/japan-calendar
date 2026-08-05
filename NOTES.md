@@ -61,20 +61,27 @@ main へマージ済み。**コード上の未処理の指摘は現在ない。*
 （Asia/Tokyo・UTC・Pacific/Kiritimati・Pacific/Midway の4TZ）すべて通過。
 新テストは**変異4種（bigint分岐削除・bigintのtruncate外し・サロゲート
 バックオフ削除・常時バックオフ）すべてで落ちることを確認済み**。
-ドリフトワークフローは YAML から `run:` ブロックを `yq` で機械的に抽出し、
-トークンあり／なしの両方を実行して確認した（GitHub Actions 上での実行は未確認）。
+
+GitHub Actions 上でも実際に走らせて確認した（2026-08-05）:
+
+- `check-claude-md-drift` を `workflow_dispatch` でブランチ上で実行 →
+  success。ログ上で原本を `8776609` でチェックアウトし
+  `Common section matches the canonical template.` を出力（＝ CLAUDE.md
+  1行目に記録した SHA が実物と一致することの独立確認にもなっている）
+- **トークン未設定時のスキップ経路も実機で確認**。使い捨てブランチに
+  `on: push` の検証用ワークフローを置き、存在しないシークレットを
+  ジョブ env に写して同じ probe を実行 → `DEV_STANDARDS_TOKEN:` が空で
+  展開され（エラーにならず）、notice が出て `present=false`、
+  `if: present == 'true'` のステップが `skipped` になることを確認
 
 ### 次のセッションが最初にやること
 
 1. `npm ci && npm run typecheck && npm test` が通ることを確認（環境の健全性確認）
-2. 上記ブランチの PR の CI を確認する。とくに
-   **`check-claude-md-drift` は今回書き換えたので、実際に緑になるか要確認**
-   （`CLAUDE.md` を変更した PR でしか発火しない）
-3. 下記「人間が決めること」がまだ決まっていないなら、まずそれを聞く。
+2. 下記「人間が決めること」がまだ決まっていないなら、まずそれを聞く。
    公開判断が決まらないと、バージョン設定も公開作業も進められない
-4. コードを触るなら `CONTRIBUTING.md` の「Core invariants」を先に読む。
+3. コードを触るなら `CONTRIBUTING.md` の「Core invariants」を先に読む。
    11項目あり、いずれも一度壊して直した実績があるもの
-5. 作業するなら main から新しいブランチを切る。マージ済みブランチは再利用しない
+4. 作業するなら main から新しいブランチを切る。マージ済みブランチは再利用しない
 
 ### まだ見ていない領域
 
@@ -84,9 +91,10 @@ main へマージ済み。**コード上の未処理の指摘は現在ない。*
   実際のランタイム上では動かしていない
 - **ブラウザ／バンドラでの取り込み**。`@arethetypeswrong/cli` による
   静的な解決チェックのみ
-- **Node 20 での実インストール検証は今回未実施**。このサンドボックスに
-  Node 20 が無く、Node 22 で代替確認したのみ。CI の `consume-on-node20`
-  ジョブでの実結果を見ること
+- ~~Node 20 での実インストール検証~~ → **2026-08-05 に実施済み**。
+  nodejs.org から Node 20.19.0 を取得し、`ci.yml` の `consume-on-node20`
+  ジョブの `run:` ブロックを `yq` で抽出してそのまま実行。
+  `npm install <tarball>` → `require()` / `import` 双方が通った
 
 ## 人間が決めること
 
@@ -114,21 +122,15 @@ main へマージ済み。**コード上の未処理の指摘は現在ない。*
   設定内容（owner=tomatomerde / repo=dev-standards / Contents: Read-only）は
   再生成しても引き継がれるので作り直す必要はない。
 
-- **次回の「Update holiday data」実行で push が通ることを確認する**
-  `actions/checkout` を v4 → v7 に上げた（v6 でトークンの保存先が
-  `.git/config` の extraheader から別ファイルに変わっている）。このワークフローの
-  「Commit and push」は checkout が保存した資格情報に依存しているが、
-  **その経路は未検証** — 発火が `workflow_dispatch` / 月次スケジュール限定で、
-  かつ公式CSVに差分が出たときしか走らないため、PR の CI では踏めない。
-  `persist-credentials` の既定値が `true` のままであることは
-  v7 の `action.yml` で確認済み。さらに PR #1 の drift ジョブの実ログで、
-  v7 が `includeIf.gitdir` を `.git/config` に書き、そこから
-  `$RUNNER_TEMP/git-credentials-*.config` を読ませる方式であることを確認した
-  （＝同じジョブの後続ステップの `git push` は資格情報を拾えるはず）。
-  ただし **実際に push を通してはいない**。
-  次にこのワークフローが走ったとき（毎月1日 06:00 JST）にログを見る。
-  失敗する場合の対処は、Commit and push ステップに
-  `env: GH_TOKEN`/明示的な remote URL 設定を足すこと。
+- **使い捨て検証ブランチ2本を消す（このセッションの後始末）**
+  `chore/tmp-verify-v7` と `chore/tmp-verify-target`。下記「checkout v7 での
+  push」を実機確認するために作ったもので、中身に価値はない。
+  **このセッションのプロキシは ref の削除を 403 で拒否するため消せなかった。**
+  手元で:
+
+  ```sh
+  git push origin --delete chore/tmp-verify-v7 chore/tmp-verify-target
+  ```
 
 - **dev-standards 側へ `actions/checkout` v7 を戻す**
   原本の `examples/check-claude-md-drift.yml` はまだ `actions/checkout@v4`。
@@ -154,8 +156,8 @@ GitHub の Topics は設定済み（API で確認済み、12件）。
 | `src/rules/` | equinox/observed/holidayLaw/exceptions すべて変異検出。1949–54年は法律を根拠に固定 |
 | `scripts/` | fetch/report とも変異検出。退行ガードあり |
 | `worker/index.ts` | 全ルートを共通契約＋個別ペイロードで検証。敵対的入力11種も固定 |
-| パッケージング | `@arethetypeswrong/cli` 4項目green。Node 20 での実インストール検証をCIで実施 |
-| CI / ワークフロー | pipefail 修正済み。Node 20 消費者ジョブあり |
+| パッケージング | `@arethetypeswrong/cli` 4項目green。Node 20 実機（20.19.0）でtarballを install し `require()`/`import` 両方通過 |
+| CI / ワークフロー | pipefail 修正済み。Node 20 消費者ジョブあり。**`actions/checkout@v7` の資格情報で後続ステップの `git push` が通ることを Actions 上で実証済み**（新規ブランチ作成・既存ブランチへの `--force` 再pushとも success）。`update-holidays.yml` の Commit and push はこの経路に乗っている |
 
 ## 運用メモ
 
