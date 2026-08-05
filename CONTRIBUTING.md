@@ -128,7 +128,21 @@ reintroduce a bug that was deliberately fixed.
   parameter parsing validates first), which is exactly why they were
   missed — grep for `String(` and `${` interpolations next to a `throw` in
   `src/` rather than trusting that Worker coverage implies library
-  coverage.
+  coverage. The last hole was inside `describeValue` itself: its `bigint`
+  branch returned `` `${value}n` `` without calling `truncate`, so a
+  5000-digit `bigint` produced a 5002-character message while every other
+  branch stayed capped. A new branch added to `describeValue` must go
+  through `truncate` unless its output length is bounded by construction.
+- **`describeValue` must not cut a surrogate pair in half.** `truncate`
+  slices at a UTF-16 code-unit index, so a boundary landing inside one
+  astral character (emoji, kanji outside the BMP) leaves a lone high
+  surrogate — a string that no longer decodes to text. The Worker hides
+  this: `JSON.stringify` escapes the stray surrogate on its way into the
+  response body, so the bug is only observable from a direct library
+  caller, and only a `src/`-level test can hold it. Stepping back one code
+  unit unconditionally is not the fix either — that truncates one
+  character early for every value whose pair already fits, which
+  `test/errors.test.ts` pins alongside the split case.
 - **The data fetch must refuse to shrink.** `assertNoRegression` in
   `scripts/fetch-syukujitsu.ts` compares against the committed
   `OFFICIAL_META`. Without it, an upstream file republished without its
