@@ -31,51 +31,22 @@ PR を作る（dev-standards の共通方針に合わせて2026-08-04に切り�
 npm 公開の直前。ライブラリ・営業日API・和暦・Cloudflare Workers・CI・
 月次データ更新ワークフローまで実装済み。テストは 325 件（14ファイル）。
 
-PR #1（引数検証・CLAUDE.md 再構成・Actions v7 化）と PR #2（その独立レビューで
-見つかった `describeValue` 経由漏れ・`formatWareki` の実在性チェック）はどちらも
-main へマージ済み。**コード上の未処理の指摘は現在ない。**
+PR #1〜#3 はすべて main へマージ済み。**コード上の未処理の指摘は現在ない。**
+直近の PR #3 で `describeValue` の残件2件（bigint 分岐が 200 文字上限を
+迂回していた件・`truncate` がサロゲートペアを分断しうる件）を潰し、
+dev-standards の原本とも同期した。経緯は `CHANGELOG.md` とコミットに残してある。
 
 **進行中: ブランチ `claude/japan-calendar-pr1-review-5cgr7m`**（main から分岐）。
-以下を積んである:
-
-1. dev-standards の原本と同期。原本 `2ddb229 → 8776609` の差分は
-   `examples/check-claude-md-drift.yml` の1件のみ（`DEV_STANDARDS_TOKEN`
-   未設定時に notice を出してスキップする。未設定のまま `actions/checkout`
-   にトークンを渡すとジョブが hard-fail するため）。当リポジトリの
-   `.github/workflows/check-claude-md-drift.yml` に取り込み済み。
-   **`actions/checkout` は当リポジトリ側の v7 を維持**（原本の例は v4 のまま
-   だったので、原本側にも dev-standards PR #5 を出してある）。
-   `CLAUDE.md` の共通部分は原本 8776609 と完全一致（差分なし）で、
-   1行目の原本参照 SHA を更新した
-2. PR #2 のレビューで見送っていた `describeValue` の2件を処理:
-   - **bigint 分岐が 200 文字上限を迂回していた**（`truncate` を通していない）。
-     `isBusinessDay(10n ** 5000n)` で 5002 文字のメッセージを実測。
-     「エラーメッセージが呼び出し側の入力を無制限に反射しない」という
-     不変条件の唯一の穴だった。修正のうえテストを追加
-     （分岐そのものを消してもテストが落ちなかった件も同時に解消）
-   - **`truncate` がサロゲートペアを分断しうる**件。`'a'.repeat(198)` +
-     `🗾` で上位サロゲート単独が残ることを実測。境界に掛かるときだけ
-     1コードユニット手前で切るよう修正（一律に1文字削ると、収まっている
-     ペアまで削れるので、そちらもテストで固定）
-
-検証: `npm run typecheck` / `npm test`（325件）/ `npm run test:tz`
-（Asia/Tokyo・UTC・Pacific/Kiritimati・Pacific/Midway の4TZ）すべて通過。
-新テストは**変異4種（bigint分岐削除・bigintのtruncate外し・サロゲート
-バックオフ削除・常時バックオフ）すべてで落ちることを確認済み**。
-
-GitHub Actions 上でも実際に走らせて確認した（2026-08-05）:
-
-- `check-claude-md-drift` を `workflow_dispatch` でブランチ上で実行 →
-  success。ログ上で原本を `8776609` でチェックアウトし
-  `Common section matches the canonical template.` を出力（＝ CLAUDE.md
-  1行目に記録した SHA が実物と一致することの独立確認にもなっている）
-- **トークン未設定時のスキップ経路も実機で確認**。使い捨てブランチに
-  `on: push` の検証用ワークフローを置き、存在しないシークレットを
-  ジョブ env に写して同じ probe を実行 → `DEV_STANDARDS_TOKEN:` が空で
-  展開され（エラーにならず）、notice が出て `present=false`、
-  `if: present == 'true'` のステップが `skipped` になることを確認
+dev-standards 側の PR #4 / #5 をマージした結果ずれた `CLAUDE.md` の共通部分を
+原本 `03e7e41` に再同期しただけの追随コミット。あわせて、`CONTRIBUTING.md` の
+Core invariants が 11 項目になっているのに「7項目」と書いてあった箇所を直した。
 
 ### 次のセッションが最初にやること
+
+**このセッションは公開前レビュー**（実装とは別セッションで行う運用）。
+下の「公開前レビューの依頼内容」を読むこと。
+
+その前に:
 
 1. `npm ci && npm run typecheck && npm test` が通ることを確認（環境の健全性確認）
 2. 下記「人間が決めること」がまだ決まっていないなら、まずそれを聞く。
@@ -83,6 +54,35 @@ GitHub Actions 上でも実際に走らせて確認した（2026-08-05）:
 3. コードを触るなら `CONTRIBUTING.md` の「Core invariants」を先に読む。
    11項目あり、いずれも一度壊して直した実績があるもの
 4. 作業するなら main から新しいブランチを切る。マージ済みブランチは再利用しない
+
+### 公開前レビューの依頼内容
+
+**「問題なし」で終わらせない。見ていない領域があるなら「ここは見ていない」と言う。**
+指摘は重要度順に、実際に動かした結果を根拠として添える。
+
+優先して見てほしい順:
+
+1. **`src/` 全体を、公開パッケージとして初めて外から触られる前提で見る。**
+   これまでの指摘（`[object Object]`、無制限反射、型だけ見るシェイプガード、
+   bigint の上限迂回）は**すべて「不正な入力に対する振る舞い」で見つかっている**。
+   同じ系統がまだ残っていないか
+2. **`worker/index.ts`。** 敵対的入力11種は固定済みだが、
+   **`wrangler dev` の実ランタイム上では一度も動かしていない**。
+   テストは `fetch` ハンドラの直呼び
+3. **README / README.ja / NOTICE。** 出典・CC BY 表示・サポート範囲・免責が
+   公開時の実態と合っているか。とくに「repository を public にしていない状態で
+   npm に出すと壊れるリンク」は `NOTES.md`「人間が決めること」に書いてある前提
+4. **`package.json` の公開設定。** `files` / `exports` / `engines` /
+   `publishConfig`。`npm pack --dry-run` の一覧は 2026-08-05 に目視済みだが、
+   バージョンは `0.0.0` のまま（公開判断待ち）
+
+すでに検証済みなので**再確認しなくてよい**もの（コストを使わないこと）:
+
+- 全14実装ファイルの変異テスト（下の「レビュー状況」表）
+- `@arethetypeswrong/cli` 4項目 green
+- Node 20 実機（20.19.0）での tarball install → `require()` / `import`
+- 4TZ でのテスト通過
+- `actions/checkout@v7` の資格情報で後続ステップの `git push` が通ること
 
 ### まだ見ていない領域
 
@@ -123,26 +123,7 @@ GitHub Actions 上でも実際に走らせて確認した（2026-08-05）:
   設定内容（owner=tomatomerde / repo=dev-standards / Contents: Read-only）は
   再生成しても引き継がれるので作り直す必要はない。
 
-- **dev-standards の PR #5 をマージする**（v7 back-port）
-  原本の `examples/check-claude-md-drift.yml` を `actions/checkout@v4` →
-  `@v7` にする2行の変更。原本を直さないと、次に別案件へコピーしたときに
-  v4 に戻る。PR は出してある。
-
 GitHub の Topics は設定済み（API で確認済み、12件）。
-
-## dev-standards の open PR #4 に依存する持ち越し
-
-原本に「公開案件を見据えた共通部分の見直し」という未マージの PR がある。
-**マージされたら、このリポジトリでも追随作業が発生する**:
-
-1. `CLAUDE.md` の共通部分が原本からずれるので、再同期して1行目の SHA を
-   更新する（`drift` ジョブが警告を出すが fail はしない）
-2. 原本側の変更に **`Claude-Session:` トレーラを付けない**というルールが
-   入っている。このリポジトリの過去のコミットには付いているものがあるが、
-   マージ済み履歴は遡らない方針なので、以後の新規コミットから守れば足りる
-
-順序としては **japan-calendar の PR #3 を先にマージ → その後 dev-standards の
-#4 / #5** が手戻りが少ない。逆順だと #3 の CI で drift 警告が出て紛らわしい。
 
 ## レビュー状況
 
