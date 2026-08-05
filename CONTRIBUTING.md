@@ -85,6 +85,27 @@ reintroduce a bug that was deliberately fixed.
   into `d`, `u`, and `y`. For the same reason `worker/index.ts` uses
   `error.name`, not `error.constructor.name`. `test/errors.test.ts` runs
   a real minifier, because nothing else can catch a regression here.
+- **Every public entry point validates its non-date arguments too.**
+  `assertCalendarKind`, `assertDayCount`, the `Number.isInteger` check at
+  the top of `assertYearInRange`, and `formatWareki`'s format/shape guards
+  all exist because the unguarded versions returned a *plausible wrong
+  answer* instead of failing: `'Bank'` silently meant the national
+  calendar, `NaN` days silently meant zero days, `holidaysForYear(NaN)`
+  computed and memoized a holiday list for a year that doesn't exist, and
+  an unknown format rendered the literal text `undefined`. TypeScript does
+  not cover any of this — most consumers of a published package call it
+  from JavaScript, and even in TypeScript these values routinely arrive as
+  a plain `string` from JSON or a form. The type signatures are a
+  convenience, not the check. `test/argumentValidation.test.ts` pins each
+  guard, and each one has been verified to fail the suite when removed.
+- **No error message may carry an unbounded amount of caller input.**
+  Everything interpolated into a message goes through `describeValue`,
+  which caps the rendering at 200 characters. The Worker copies
+  `error.message` into its 400 body verbatim, so an uncapped message let a
+  50 KB query parameter be reflected back to the client and written to the
+  logs at full length. This applies to the Worker's own `BadRequestError`
+  messages too, including the 404 route name and the 405 method name.
+  `test/echoBounds.test.ts` drives real requests at every such path.
 - **The data fetch must refuse to shrink.** `assertNoRegression` in
   `scripts/fetch-syukujitsu.ts` compares against the committed
   `OFFICIAL_META`. Without it, an upstream file republished without its

@@ -6,7 +6,7 @@
 
 import { nthWeekdayOfMonth, toDays, type CivilDate, type Weekday } from './civil.js';
 import { OFFICIAL_META } from './data/official.js';
-import { OutOfRangeError } from './errors.js';
+import { InvalidArgumentError, OutOfRangeError, describeValue } from './errors.js';
 import { toCivilDate, type DateInput } from './input.js';
 import { autumnalEquinoxDay, vernalEquinoxDay } from './rules/equinox.js';
 import { ONE_OFF_HOLIDAYS, OLYMPIC_OVERRIDES } from './rules/exceptions.js';
@@ -19,6 +19,16 @@ export const MIN_SUPPORTED_YEAR = 1949;
 export const MAX_SUPPORTED_YEAR = 2099;
 
 export function assertYearInRange(year: number): void {
+  // Must come first: every comparison against NaN is false, so `NaN` used to
+  // slip through the range check and reach `holidaysForYear`, which then
+  // computed and memoized a holiday list under the key `NaN`. A non-integer
+  // year (2026.5) and a numeric string ('2026', which the relational
+  // operators coerce) passed the same way. All three returned a plausible
+  // list for a year that doesn't exist, and each distinct bad key grew the
+  // memo cache permanently.
+  if (!Number.isInteger(year)) {
+    throw new InvalidArgumentError(`Year must be an integer: ${describeValue(year)}`);
+  }
   if (year < MIN_SUPPORTED_YEAR || year > MAX_SUPPORTED_YEAR) {
     throw new OutOfRangeError(
       `Year out of range: ${year}. The holiday API only supports ${MIN_SUPPORTED_YEAR}-${MAX_SUPPORTED_YEAR}.`,

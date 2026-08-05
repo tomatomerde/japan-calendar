@@ -24,6 +24,7 @@ export {
 export { civilFromInstant, toCivilDate, type DateInput } from './input.js';
 
 export {
+  InvalidArgumentError,
   InvalidDateInputError,
   InvalidWarekiDateError,
   JapanCalendarError,

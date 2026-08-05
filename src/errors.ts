@@ -13,6 +13,43 @@
  * Literals survive minification; derived names don't.
  */
 
+/**
+ * Renders an arbitrary value for an error message.
+ *
+ * `String(value)` turns every object into `[object Object]`, which tells a
+ * caller who passed a near-miss shape (`{ y, m, d }` instead of
+ * `{ year, month, day }`) nothing about what was wrong. Not exported from
+ * the package index -- this is internal.
+ */
+/**
+ * Longest rendered value an error message will carry.
+ *
+ * Error messages end up in logs, and the Worker echoes them in its 400
+ * bodies. Without a cap, passing one large object produced a 200 KB message
+ * -- the caller's own data, reflected back at whatever reads the log.
+ */
+const MAX_DESCRIBED_LENGTH = 200;
+
+function truncate(rendered: string): string {
+  return rendered.length <= MAX_DESCRIBED_LENGTH
+    ? rendered
+    : `${rendered.slice(0, MAX_DESCRIBED_LENGTH)}… (${rendered.length} chars)`;
+}
+
+export function describeValue(value: unknown): string {
+  if (typeof value === 'string') return truncate(JSON.stringify(value));
+  if (typeof value === 'bigint') return `${value}n`;
+  if (typeof value === 'object' && value !== null) {
+    try {
+      const json = JSON.stringify(value);
+      if (json !== undefined) return truncate(json);
+    } catch {
+      // Circular or otherwise unserializable; fall through to String().
+    }
+  }
+  return truncate(String(value));
+}
+
 export class JapanCalendarError extends Error {
   constructor(message: string) {
     super(message);
@@ -25,6 +62,25 @@ export class InvalidDateInputError extends JapanCalendarError {
   constructor(message: string) {
     super(message);
     this.name = 'InvalidDateInputError';
+  }
+}
+
+/**
+ * An argument other than a date is of the wrong type or is not one of the
+ * accepted values -- an unknown `CalendarKind`, a non-integer day count, an
+ * unknown wareki format.
+ *
+ * These are separate from `InvalidDateInputError` because they are not about
+ * interpreting a date. Without them the library would answer anyway: a
+ * mistyped `'Bank'` silently fell back to the national calendar, and a `NaN`
+ * day count silently behaved like `0`. Both produced a plausible wrong
+ * answer rather than a failure, which is exactly what this library exists
+ * not to do.
+ */
+export class InvalidArgumentError extends JapanCalendarError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidArgumentError';
   }
 }
 

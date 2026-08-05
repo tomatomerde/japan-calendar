@@ -126,6 +126,45 @@ isHoliday('2026-9-22');            // ✗ InvalidDateInputError — ゼロ埋め
 答えも違う。曖昧な入力を推測で通さず拒否する方針とした。暦日を指したい
 なら `YYYY-MM-DD` を、瞬間を指したいならオフセットを付けて渡す。
 
+### 日付以外の引数も検証する
+
+同じ方針をすべての引数に適用している。誤った引数は、それらしい答えを返さず
+`InvalidArgumentError` を投げる:
+
+```ts
+isBusinessDay('2026-12-31', 'Bank');   // ✗ InvalidArgumentError — 'national' | 'bank' のみ
+addBusinessDays('2026-08-03', NaN);    // ✗ InvalidArgumentError — days は安全整数
+addBusinessDays('2026-08-03', 1.5);    // ✗ InvalidArgumentError
+holidaysForYear(2026.5);               // ✗ InvalidArgumentError — 年は整数
+formatWareki(w, 'JA');                 // ✗ InvalidArgumentError — 未知の形式
+```
+
+これが効くのは主に素の JavaScript から使う場合と、TypeScript でも値が JSON・
+クエリパラメータ・フォーム入力から `string` として来る場合で、型注釈は実行時には
+存在しない。特に危険なのは `'Bank'` のような大文字小文字の取り違えで、
+これは bank カレンダーではない。national の答えを返せば、
+**自信を持って間違った答えを返す**ことになる。
+
+### エラー
+
+すべての例外は `JapanCalendarError` を継承するので、1つの `catch` で捕まえられる。
+
+| エラー | 発生条件 |
+|---|---|
+| `InvalidDateInputError` | 日付引数を解釈できない、または存在しない日を指している |
+| `InvalidArgumentError` | 日付以外の引数の型が違う、または許容値でない |
+| `OutOfRangeError` | 日付が 1949–2099年の外 |
+| `UnsupportedWarekiRangeError` | 明治6年1月1日（1873-01-01）より前の和暦変換 |
+| `MeijiReformError` | 明治5年12月3–31日。1873年の改暦で消えた29日間 |
+| `InvalidWarekiDateError` | その元号の期間外の和暦日付（例: 昭和64年1月8日） |
+
+`isHoliday` は、単にその日が祝日でない場合は例外ではなく `null` を返す。
+例外を投げるのは入力そのものが使えないときだけ。
+
+エラーメッセージは問題の値を引用するが、200文字で打ち切る。Worker は
+メッセージを 400 の本文にそのまま入れるので、呼び出し側の入力を丸ごと
+反射するとエコーサービスになってしまう。
+
 ### 春分の日・秋分の日の近似式について
 
 `src/rules/equinox.ts` の近似式は、内閣府の公式データ（1955〜2027年、
@@ -158,6 +197,11 @@ isHoliday('2026-9-22');            // ✗ InvalidDateInputError — ゼロ埋め
 - `test/fetchScript.test.ts` — CSVのパースと、データ更新スクリプトの
   健全性チェック・退行ガード。これらは通常 GitHub Actions 上でしか
   動かないため、ここで単体検証する。
+- `test/argumentValidation.test.ts` — 日付以外の全引数
+  （`CalendarKind`・日数・年・和暦の形式とオブジェクト形状）。
+  ここにあるケースはいずれも、修正前は例外ではなくそれらしい誤答を返していた。
+- `test/echoBounds.test.ts` — 呼び出し側の入力をエラーメッセージに載せる
+  Worker の全経路に実リクエストを投げ、入力が丸ごと反射されないことを確認する。
 - `test/performance.test.ts` — `businessDaysBetween` が閉形式のままで
   あることを検証する。日単位走査に退行してもこのテストだけが検出する
   （素朴な実装でも答えは同じで、遅くなるだけのため）。
@@ -201,6 +245,24 @@ GET /v1/wareki/reverse?era=&year=&month=&day=
 祝日が確定済み（`confirmed: true`）のレスポンスは長期キャッシュ、暫定を
 含む場合は短期キャッシュを返す。エラーはライブラリの例外をそのまま
 `{ error: { type, message } }` の形で400番台に変換する。
+
+## サポート範囲と免責
+
+このライブラリが扱う範囲と、意図的に扱わない範囲:
+
+- **対応年。** 祝日判定・営業日計算は 1949–2099年。範囲外は
+  `OutOfRangeError`。和暦変換は明治6年1月1日（1873-01-01）以降。
+- **`equinoxConfirmedThrough` を超える春分・秋分は予報であって事実ではない。**
+  `confirmed: false` を付けて返す。確定した日付として扱わず、フラグを見ること。
+- **1949–1954年は独立した検証ができない。** この6年は公式データの範囲外で、
+  近似式の外挿に依拠している。1948年の祝日法の条文を根拠にテストで固定して
+  あるが、これは得られる中で最善のチェックであって、公表値との突き合わせでは
+  ない。
+- **カレンダーは `'national'` と `'bank'` の2種のみ。** 企業・業界独自の
+  休業日は対象外。
+- **無保証。** ソフトウェアは MIT ライセンスの "AS IS" 提供。祝日・営業日の
+  判定結果が法的・金融的・規制上の判断に適することは保証しない。正確性が
+  重要な用途では内閣府の公表データで確認すること。
 
 ## コントリビュート
 

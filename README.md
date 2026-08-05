@@ -139,6 +139,46 @@ library a different day can mean a different answer. Rather than guess,
 the library refuses the ambiguous input: pass a plain `YYYY-MM-DD` string
 if you mean a calendar date, or add an offset if you mean an instant.
 
+### Other arguments are checked too
+
+The same rule applies to every argument, not just dates. A wrong argument
+raises `InvalidArgumentError` rather than producing a plausible answer:
+
+```ts
+isBusinessDay('2026-12-31', 'Bank');   // ✗ InvalidArgumentError — only 'national' | 'bank'
+addBusinessDays('2026-08-03', NaN);    // ✗ InvalidArgumentError — days must be a safe integer
+addBusinessDays('2026-08-03', 1.5);    // ✗ InvalidArgumentError
+holidaysForYear(2026.5);               // ✗ InvalidArgumentError — year must be an integer
+formatWareki(w, 'JA');                 // ✗ InvalidArgumentError — unknown format
+```
+
+This matters most from plain JavaScript, and from TypeScript whenever the
+value arrives as a `string` from JSON, a query parameter, or a form field —
+the type annotation isn't there at runtime. A capitalization slip like
+`'Bank'` is the dangerous case: it isn't the bank calendar, and answering
+as if it were the national one would be a wrong answer delivered with
+confidence.
+
+### Errors
+
+Every exception extends `JapanCalendarError`, so one `catch` covers them all.
+
+| Error | Raised when |
+|---|---|
+| `InvalidDateInputError` | A date argument can't be interpreted, or names a day that doesn't exist |
+| `InvalidArgumentError` | A non-date argument has the wrong type or isn't an accepted value |
+| `OutOfRangeError` | A date is outside 1949–2099 |
+| `UnsupportedWarekiRangeError` | A wareki conversion before Meiji 6-1-1 (1873-01-01) |
+| `MeijiReformError` | Meiji 5, month 12, days 3–31 — the 29 days the 1873 reform removed |
+| `InvalidWarekiDateError` | A wareki date outside its own era's span, e.g. Shōwa 64-1-8 |
+
+`isHoliday` returns `null` rather than throwing when the date is simply not
+a holiday; it throws only when the input itself is unusable.
+
+Error messages quote the offending value, capped at 200 characters — the
+Worker copies them into its 400 bodies, and a message that reflects a
+caller's entire input turns the API into an echo service.
+
 ### About the equinox approximation formula
 
 The approximation formula in `src/rules/equinox.ts` has been verified
@@ -175,6 +215,12 @@ verified and rely purely on this formula's extrapolation.
 - `test/fetchScript.test.ts` — CSV parsing and the sanity/regression
   guards in the data-update script, which are otherwise only exercised
   on a GitHub Actions runner.
+- `test/argumentValidation.test.ts` — Every non-date argument
+  (`CalendarKind`, day counts, years, wareki formats and shapes). Each
+  case here used to return a plausible wrong answer instead of failing.
+- `test/echoBounds.test.ts` — Drives real requests at every Worker path
+  that puts caller input into an error message, checking none of them
+  reflects the input at full length.
 - `test/performance.test.ts` — Asserts `businessDaysBetween` stays
   closed-form rather than degrading to a day-by-day scan. This is the
   only test that catches that regression, since the naive path returns
@@ -221,6 +267,28 @@ Responses where every holiday is finalized (`confirmed: true`) get a
 long cache lifetime; responses with a tentative holiday get a short one.
 Errors are the library's own exceptions, passed straight through as
 `{ error: { type, message } }` with a 4xx status.
+
+## Support scope and disclaimer
+
+What this library covers, and what it deliberately does not:
+
+- **Supported years.** Holiday and business-day functions cover
+  1949-2099; anything outside raises `OutOfRangeError`. Wareki conversion
+  covers Meiji 6-1-1 (1873-01-01) onward.
+- **Equinox dates beyond `equinoxConfirmedThrough` are forecasts, not
+  facts.** They are returned with `confirmed: false`. Don't treat them as
+  settled dates — check the flag.
+- **1949-1954 cannot be independently verified.** Those six years fall
+  outside the official data, so they rely on the approximation formula's
+  extrapolation. They are pinned by tests derived from the text of the
+  1948 Public Holiday Law, which is the best available check, not a
+  confirmation against published dates.
+- **Only two calendars are provided**, `'national'` and `'bank'`.
+  Company- or industry-specific closure days are out of scope.
+- **No warranty.** The software is provided "AS IS" under the MIT
+  License. Holiday and business-day results are not guaranteed to be
+  fit for legal, financial, or regulatory decisions; verify against the
+  Cabinet Office's own publication where correctness is load-bearing.
 
 ## Contributing
 

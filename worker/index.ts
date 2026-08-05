@@ -16,7 +16,7 @@
 
 import { toIsoDate, type CivilDate } from '../src/civil.js';
 import { OFFICIAL_META } from '../src/data/official.js';
-import { JapanCalendarError } from '../src/errors.js';
+import { JapanCalendarError, describeValue } from '../src/errors.js';
 import { MAX_SUPPORTED_YEAR, MIN_SUPPORTED_YEAR, assertYearInRange, holidaysForYear } from '../src/holidays.js';
 import { toCivilDate } from '../src/input.js';
 import { addBusinessDays, businessDaysBetween, type CalendarKind } from '../src/businessDays.js';
@@ -94,7 +94,7 @@ function requireParam(searchParams: URLSearchParams, name: string): string {
 function parseCalendar(searchParams: URLSearchParams): CalendarKind {
   const raw = searchParams.get('calendar') ?? 'national';
   if (raw !== 'national' && raw !== 'bank') {
-    throw new BadRequestError(`calendar must be either 'national' or 'bank': ${raw}`);
+    throw new BadRequestError(`calendar must be either 'national' or 'bank': ${describeValue(raw)}`);
   }
   return raw;
 }
@@ -103,7 +103,7 @@ const INTEGER = /^-?\d+$/;
 
 function parseInteger(raw: string, name: string): number {
   if (!INTEGER.test(raw)) {
-    throw new BadRequestError(`${name} must be an integer: ${raw}`);
+    throw new BadRequestError(`${name} must be an integer: ${describeValue(raw)}`);
   }
   return Number(raw);
 }
@@ -225,7 +225,7 @@ function route(request: Request): Response {
     try {
       param = decodeURIComponent(holidaysMatch[1] as string);
     } catch {
-      throw new BadRequestError(`Malformed URL escape sequence in path: ${holidaysMatch[1]}`);
+      throw new BadRequestError(`Malformed URL escape sequence in path: ${describeValue(holidaysMatch[1])}`);
     }
     return handleHolidays(param);
   }
@@ -235,7 +235,7 @@ function route(request: Request): Response {
   if (pathname === '/v1/wareki') return handleWareki(searchParams);
   if (pathname === '/v1/wareki/reverse') return handleWarekiReverse(searchParams);
 
-  return errorResponse(404, 'NotFound', `Unknown route: ${pathname}`);
+  return errorResponse(404, 'NotFound', `Unknown route: ${describeValue(pathname)}`);
 }
 
 export default {
@@ -245,7 +245,7 @@ export default {
     }
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       // RFC 9110 §15.5.6 requires a 405 response to include Allow.
-      return errorResponse(405, 'MethodNotAllowed', `${request.method} is not allowed. Only GET and HEAD are supported.`, {
+      return errorResponse(405, 'MethodNotAllowed', `${describeValue(request.method)} is not allowed. Only GET and HEAD are supported.`, {
         allow: 'GET, HEAD',
       });
     }
