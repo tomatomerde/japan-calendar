@@ -191,6 +191,33 @@ function assertWareki(wareki: Wareki, format: WarekiFormat): void {
       );
     }
   }
+
+  // 'ja' is the only format that reads isGannen, and it reads it as a plain
+  // truthiness test -- so a hand-built object without the field silently
+  // rendered '令和1年5月1日' where the canonical object gives '令和元年5月1日'.
+  // That is the same "quietly different answer" this guard exists to stop,
+  // so the field is checked rather than defaulted.
+  //
+  // isGannen is defined as `eraYear === 1`, not an independent switch: an
+  // object where the two disagree is internally inconsistent, and picking
+  // either side would be guessing. ('ja-numeric' is how you ask for the
+  // numeric form.)
+  //
+  // One comparison covers both a missing field and a contradictory one: the
+  // right-hand side is a boolean, so any non-boolean isGannen -- including
+  // `undefined` -- is unequal to it. A separate `typeof` check ahead of this
+  // would be unreachable dead code (mutation testing: removing it failed no
+  // test, because this comparison had already caught every case). Only the
+  // wording differs, so that is all the branch below decides.
+  if (format === 'ja' && wareki.isGannen !== (wareki.eraYear === 1)) {
+    throw new InvalidArgumentError(
+      typeof wareki.isGannen === 'boolean'
+        ? `wareki.isGannen (${wareki.isGannen}) contradicts wareki.eraYear (${wareki.eraYear}); ` +
+          `isGannen is defined as eraYear === 1. Use the 'ja-numeric' format to write 1年 instead of 元年.`
+        : `wareki.isGannen is missing or invalid: ${describeValue(wareki.isGannen)}. ` +
+          `Build the object with toWareki() rather than by hand.`,
+    );
+  }
 }
 
 export function formatWareki(wareki: Wareki, format: WarekiFormat = 'ja'): string {
@@ -230,7 +257,7 @@ function resolveEra(input: EraInput): EraDefinition {
     }
   }
   throw new InvalidDateInputError(
-    `Unknown era: ${JSON.stringify(raw)}. ` +
+    `Unknown era: ${describeValue(raw)}. ` +
       `Pass one of ${ERAS.map((era) => `${era.name}(${era.romaji}/${era.abbr})`).join(', ')}.`,
   );
 }

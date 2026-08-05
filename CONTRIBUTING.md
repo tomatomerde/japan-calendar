@@ -98,6 +98,14 @@ reintroduce a bug that was deliberately fixed.
   a plain `string` from JSON or a form. The type signatures are a
   convenience, not the check. `test/argumentValidation.test.ts` pins each
   guard, and each one has been verified to fail the suite when removed.
+- **No error message may carry an unbounded amount of caller input.**
+  Everything interpolated into a message goes through `describeValue`,
+  which caps the rendering at 200 characters. The Worker copies
+  `error.message` into its 400 body verbatim, so an uncapped message let a
+  50 KB query parameter be reflected back to the client and written to the
+  logs at full length. This applies to the Worker's own `BadRequestError`
+  messages too, including the 404 route name and the 405 method name.
+  `test/echoBounds.test.ts` drives real requests at every such path.
 - **The data fetch must refuse to shrink.** `assertNoRegression` in
   `scripts/fetch-syukujitsu.ts` compares against the committed
   `OFFICIAL_META`. Without it, an upstream file republished without its

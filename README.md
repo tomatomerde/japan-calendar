@@ -175,6 +175,10 @@ Every exception extends `JapanCalendarError`, so one `catch` covers them all.
 `isHoliday` returns `null` rather than throwing when the date is simply not
 a holiday; it throws only when the input itself is unusable.
 
+Error messages quote the offending value, capped at 200 characters — the
+Worker copies them into its 400 bodies, and a message that reflects a
+caller's entire input turns the API into an echo service.
+
 ### About the equinox approximation formula
 
 The approximation formula in `src/rules/equinox.ts` has been verified
@@ -211,6 +215,12 @@ verified and rely purely on this formula's extrapolation.
 - `test/fetchScript.test.ts` — CSV parsing and the sanity/regression
   guards in the data-update script, which are otherwise only exercised
   on a GitHub Actions runner.
+- `test/argumentValidation.test.ts` — Every non-date argument
+  (`CalendarKind`, day counts, years, wareki formats and shapes). Each
+  case here used to return a plausible wrong answer instead of failing.
+- `test/echoBounds.test.ts` — Drives real requests at every Worker path
+  that puts caller input into an error message, checking none of them
+  reflects the input at full length.
 - `test/performance.test.ts` — Asserts `businessDaysBetween` stays
   closed-form rather than degrading to a day-by-day scan. This is the
   only test that catches that regression, since the naive path returns

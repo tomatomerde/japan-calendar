@@ -90,14 +90,14 @@ export function toCivilDate(input: DateInput): CivilDate {
     // rejected -- see OFFSET_DATE_TIME.
     if (!OFFSET_DATE_TIME.test(input)) {
       throw new InvalidDateInputError(
-        `String cannot be interpreted as a date: ${JSON.stringify(input)}. ` +
+        `String cannot be interpreted as a date: ${describeValue(input)}. ` +
           `Pass a YYYY-MM-DD string, or an ISO 8601 date-time with an explicit offset (e.g. a trailing Z or +09:00).`,
       );
     }
     const parsed = Date.parse(input);
     if (Number.isNaN(parsed)) {
       throw new InvalidDateInputError(
-        `String cannot be interpreted as a date: ${JSON.stringify(input)}. ` +
+        `String cannot be interpreted as a date: ${describeValue(input)}. ` +
           `Pass a YYYY-MM-DD string, or an ISO 8601 date-time with an explicit offset (e.g. a trailing Z or +09:00).`,
       );
     }

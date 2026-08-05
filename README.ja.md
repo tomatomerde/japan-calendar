@@ -161,6 +161,10 @@ formatWareki(w, 'JA');                 // ✗ InvalidArgumentError — 未知の
 `isHoliday` は、単にその日が祝日でない場合は例外ではなく `null` を返す。
 例外を投げるのは入力そのものが使えないときだけ。
 
+エラーメッセージは問題の値を引用するが、200文字で打ち切る。Worker は
+メッセージを 400 の本文にそのまま入れるので、呼び出し側の入力を丸ごと
+反射するとエコーサービスになってしまう。
+
 ### 春分の日・秋分の日の近似式について
 
 `src/rules/equinox.ts` の近似式は、内閣府の公式データ（1955〜2027年、
@@ -193,6 +197,11 @@ formatWareki(w, 'JA');                 // ✗ InvalidArgumentError — 未知の
 - `test/fetchScript.test.ts` — CSVのパースと、データ更新スクリプトの
   健全性チェック・退行ガード。これらは通常 GitHub Actions 上でしか
   動かないため、ここで単体検証する。
+- `test/argumentValidation.test.ts` — 日付以外の全引数
+  （`CalendarKind`・日数・年・和暦の形式とオブジェクト形状）。
+  ここにあるケースはいずれも、修正前は例外ではなくそれらしい誤答を返していた。
+- `test/echoBounds.test.ts` — 呼び出し側の入力をエラーメッセージに載せる
+  Worker の全経路に実リクエストを投げ、入力が丸ごと反射されないことを確認する。
 - `test/performance.test.ts` — `businessDaysBetween` が閉形式のままで
   あることを検証する。日単位走査に退行してもこのテストだけが検出する
   （素朴な実装でも答えは同じで、遅くなるだけのため）。

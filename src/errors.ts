@@ -21,18 +21,33 @@
  * `{ year, month, day }`) nothing about what was wrong. Not exported from
  * the package index -- this is internal.
  */
+/**
+ * Longest rendered value an error message will carry.
+ *
+ * Error messages end up in logs, and the Worker echoes them in its 400
+ * bodies. Without a cap, passing one large object produced a 200 KB message
+ * -- the caller's own data, reflected back at whatever reads the log.
+ */
+const MAX_DESCRIBED_LENGTH = 200;
+
+function truncate(rendered: string): string {
+  return rendered.length <= MAX_DESCRIBED_LENGTH
+    ? rendered
+    : `${rendered.slice(0, MAX_DESCRIBED_LENGTH)}… (${rendered.length} chars)`;
+}
+
 export function describeValue(value: unknown): string {
-  if (typeof value === 'string') return JSON.stringify(value);
+  if (typeof value === 'string') return truncate(JSON.stringify(value));
   if (typeof value === 'bigint') return `${value}n`;
   if (typeof value === 'object' && value !== null) {
     try {
       const json = JSON.stringify(value);
-      if (json !== undefined) return json;
+      if (json !== undefined) return truncate(json);
     } catch {
       // Circular or otherwise unserializable; fall through to String().
     }
   }
-  return String(value);
+  return truncate(String(value));
 }
 
 export class JapanCalendarError extends Error {

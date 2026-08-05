@@ -23,12 +23,12 @@ describe('CalendarKind の検証', () => {
   // 修正前: isBusinessDay('2026-12-31', 'Bank') は true を返していた。
   // 正しい 'bank' では false。大文字小文字を間違えただけで、
   // 例外ではなく national カレンダーの答えが静かに返っていた。
-  const typos = ['Bank', 'BANK', 'banks', 'National', '', ' bank', 'bank ', null, undefined, 0, {}];
+  // undefined は既定値 'national' として正当なので、ここには入れない
+  // （テスト本体で early return させると、何も検証しないテストが1件増えるだけになる）。
+  const typos = ['Bank', 'BANK', 'banks', 'National', '', ' bank', 'bank ', null, 0, {}];
 
   for (const bad of typos) {
     it(`isBusinessDay は calendar=${JSON.stringify(bad)} を拒否する`, () => {
-      // undefined は既定値 'national' として正当なので、明示的に除く。
-      if (bad === undefined) return;
       expect(() => isBusinessDay('2026-12-31', bad as never)).toThrow(InvalidArgumentError);
     });
   }
@@ -147,6 +147,27 @@ describe('formatWareki の引数の検証', () => {
     expect(() => formatWareki(withoutAbbr as never, 'ja')).not.toThrow();
   });
 
+  it("'ja' で isGannen の欠落を検出する（レビューで見つかった取りこぼし）", () => {
+    // 検証を通過してしまう手組みオブジェクト。era/eraAbbr/eraYear/month/day は揃っている。
+    // 修正前はこれが '令和1年5月1日' を返し、正規の '令和元年5月1日' と静かに食い違った。
+    const hand = { era: '令和', eraAbbr: 'R', eraYear: 1, month: 5, day: 1 };
+    // 「矛盾」ではなく「欠落」として報告されること。両方が /isGannen/ に
+    // 一致してしまうので、文面まで見ないとメッセージの出し分けを固定できない。
+    expect(() => formatWareki(hand as never, 'ja')).toThrow(/isGannen is missing or invalid/);
+    // isGannen を読まない形式は通る。
+    expect(formatWareki(hand as never, 'abbr')).toBe('R1.5.1');
+    expect(formatWareki(hand as never, 'ja-numeric')).toBe('令和1年5月1日');
+  });
+
+  it("'ja' で isGannen と eraYear の矛盾を検出する", () => {
+    // isGannen は eraYear === 1 の別名であって独立したスイッチではない。
+    // 食い違うオブジェクトは、どちらを採っても推測になるので拒否する。
+    const contradictory = { ...wareki, isGannen: false };
+    expect(() => formatWareki(contradictory as never, 'ja')).toThrow(/contradicts/);
+    const alsoBad = { ...toWareki('2020-05-01'), isGannen: true };
+    expect(() => formatWareki(alsoBad as never, 'ja')).toThrow(/contradicts/);
+  });
+
   it('正当な組み合わせは全形式で通る', () => {
     expect(formatWareki(wareki, 'ja')).toBe('令和元年5月1日');
     expect(formatWareki(wareki, 'ja-numeric')).toBe('令和1年5月1日');
@@ -166,6 +187,29 @@ describe('新しい例外は既存の階層に収まる', () => {
 });
 
 describe('エラーメッセージが受け取った値を示す', () => {
+  it('巨大な値でもメッセージが際限なく伸びない', () => {
+    // メッセージはログに載り、Worker は 400 の本文にそのまま echo する。
+    // 上限が無いと、呼び出し側のデータがそのまま反射されて 200KB になった。
+    let message = '';
+    try {
+      isBusinessDay({ data: 'x'.repeat(200_000) } as never);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message.length).toBeLessThan(500);
+    expect(message).toContain('…');
+  });
+
+  it('壊れた値でも describeValue 自身が例外を投げない', () => {
+    // メッセージ生成で落ちると、本来のエラーが握りつぶされて別物になる。
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    const throwingToJson = { toJSON() { throw new Error('boom'); } };
+    for (const value of [circular, throwingToJson, Symbol('s'), 10n, function named() {}]) {
+      expect(() => isBusinessDay(value as never)).toThrow(JapanCalendarError);
+    }
+  });
+
   it('近いが違う形のオブジェクトで [object Object] を出さない', () => {
     // 修正前は "Value cannot be interpreted as a date: [object Object]" で、
     // どのキーが違うのか利用者には手がかりがなかった。
