@@ -176,6 +176,58 @@ describe('formatWareki の引数の検証', () => {
   });
 });
 
+describe('formatWareki は実在しない和暦日を拒否する（レビューで見つかった取りこぼし）', () => {
+  // 修正前はここまで挙げたケースがすべて形だけの検証(型・欠落)を素通りし、
+  // 存在しない日付をもっともらしく描画していた。fromWareki を再利用して、
+  // 実際に存在する和暦日かどうかまで見る。
+
+  it('存在しない日付（4月31日）を拒否する', () => {
+    const bad = { era: '令和', eraAbbr: 'R', eraYear: 8, isGannen: false, month: 4, day: 31 };
+    // 修正前: '令和8年4月31日' をそのまま返していた。
+    expect(() => formatWareki(bad as never, 'ja')).toThrow(InvalidArgumentError);
+    expect(() => formatWareki(bad as never, 'ja')).toThrow(/does not describe a date that actually exists/);
+  });
+
+  it('eraYear が 1 未満、month が 0 の組み合わせを拒否する', () => {
+    const bad = { era: '令和', eraAbbr: 'R', eraYear: -5, isGannen: false, month: 0, day: 99 };
+    // 修正前: '令和-5年0月99日' をそのまま返していた。
+    expect(() => formatWareki(bad as never, 'ja')).toThrow(InvalidArgumentError);
+  });
+
+  it('元号の在位期間外の組み合わせを拒否する（昭和64年1月8日は存在しない）', () => {
+    // 昭和は 1989-01-07 まで、翌日は平成1-1-8。日付自体は実在するが、
+    // 昭和64年1月8日という「その元号内の日付」としては存在しない。
+    const bad = { era: '昭和', eraAbbr: 'S', eraYear: 64, isGannen: false, month: 1, day: 8 };
+    expect(() => formatWareki(bad as never, 'ja')).toThrow(InvalidArgumentError);
+  });
+
+  it("era フィールドにローマ字（'Reiwa'）を許さない", () => {
+    // fromWareki はローマ字・略称も受け付けるが、Wareki.era 自体は
+    // EraName（'令和' 等の正式表記）のはず。resolveEra が解決できてしまう
+    // という理由で通してしまうと、'Reiwa8年5月1日' のような描画が起こり得た。
+    const bad = { era: 'Reiwa', eraAbbr: 'R', eraYear: 8, isGannen: false, month: 5, day: 1 };
+    expect(() => formatWareki(bad as never, 'ja')).toThrow(InvalidArgumentError);
+    expect(() => formatWareki(bad as never, 'ja')).toThrow(/canonical/);
+  });
+
+  it('存在しない era / eraAbbr を拒否する', () => {
+    const badEra = { era: '大化', eraAbbr: 'R', eraYear: 1, isGannen: true, month: 5, day: 1 };
+    expect(() => formatWareki(badEra as never, 'ja')).toThrow(/does not name a known era/);
+    const badAbbr = { era: '令和', eraAbbr: 'X', eraYear: 1, isGannen: true, month: 5, day: 1 };
+    expect(() => formatWareki(badAbbr as never, 'abbr')).toThrow(/does not name a known era/);
+  });
+
+  it('format が読まない側の識別フィールドの食い違いは許容される（既知の割り切り）', () => {
+    // era と eraAbbr が別の元号を指していても、各 format は自分が読む
+    // フィールドしか見ない。isGannen と同じく、この関数の担当は
+    // 「読むフィールドが実在の和暦日を成すか」であって、
+    // オブジェクト全体の内部整合性の保証ではない。
+    const crossEra = { era: '令和', eraAbbr: 'S', eraYear: 8, isGannen: false, month: 5, day: 1 };
+    expect(formatWareki(crossEra as never, 'abbr')).toBe('S8.5.1');
+    expect(formatWareki(crossEra as never, 'ja')).toBe('令和8年5月1日');
+  });
+});
+
 describe('新しい例外は既存の階層に収まる', () => {
   it('InvalidArgumentError は JapanCalendarError で捕まえられる', () => {
     expect(() => isBusinessDay('2026-08-03', 'Bank' as never)).toThrow(JapanCalendarError);

@@ -87,6 +87,20 @@ Not yet published to npm.
   `describeValue`'s 200-character cap exists to close everywhere else. A bad
   object also printed `[object Object]` again, the exact symptom the
   original fix eliminated elsewhere. All four now go through `describeValue`.
+- The same review found that `formatWareki`'s shape guard checked that a
+  hand-built `Wareki`'s fields had the right *type*, but not that they
+  described a date that actually exists. `{ era: '令和', eraYear: 8, month: 4,
+  day: 31 }` rendered `'令和8年4月31日'` -- April has 30 days. A `month: 0`, a
+  negative `eraYear`, or the romaji `'Reiwa'` in the `era` field (which
+  `EraName` defines as the four-character form, e.g. `'令和'`) all rendered
+  the same way. `assertWareki` now reuses `fromWareki` -- rather than a
+  second hand-written copy of "is this a real wareki date" -- to check that
+  the `era`/`eraAbbr` field the given format actually reads is both the
+  era's canonical form and describes a date that exists within that era.
+  Deliberately unchanged: a `Wareki` whose `era` and `eraAbbr` name different
+  eras still renders under a format that only reads one of them, consistent
+  with `formatWareki`'s existing per-format field selection (the same design
+  `isGannen`'s guard already established).
 - Arguments other than dates were not validated, so several ordinary
   mistakes produced a confident wrong answer instead of an error. Every one
   of these now throws `InvalidArgumentError`:

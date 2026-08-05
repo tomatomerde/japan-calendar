@@ -98,6 +98,21 @@ reintroduce a bug that was deliberately fixed.
   a plain `string` from JSON or a form. The type signatures are a
   convenience, not the check. `test/argumentValidation.test.ts` pins each
   guard, and each one has been verified to fail the suite when removed.
+- **A shape guard checking types is not the same as checking the value is
+  real.** `formatWareki`'s guard originally confirmed a hand-built
+  `Wareki`'s fields had the right types, but not that they described a
+  date that actually exists — `{ era: '令和', eraYear: 8, month: 4, day: 31 }`
+  rendered `'令和8年4月31日'`, April having only 30 days. `assertWareki`
+  now reuses `fromWareki` (rather than a second hand-written copy of "is
+  this a real wareki date", which would just be a second place for the
+  same class of bug) to confirm the `era`/`eraAbbr` field a given format
+  actually reads is both the era's own canonical form — not an alias like
+  the romaji `'Reiwa'`, which `resolveEra` accepts but `EraName` does not
+  — and describes a date that exists within that era. Found by an
+  independent review of the original argument-validation PR, which is why
+  it's called out here specifically: a shape check reads as complete
+  coverage until someone tries a value the shape allows but the domain
+  doesn't.
 - **No error message may carry an unbounded amount of caller input.**
   Everything interpolated into a message goes through `describeValue`,
   which caps the rendering at 200 characters. The Worker copies
