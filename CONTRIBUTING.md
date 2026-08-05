@@ -98,6 +98,21 @@ reintroduce a bug that was deliberately fixed.
   a plain `string` from JSON or a form. The type signatures are a
   convenience, not the check. `test/argumentValidation.test.ts` pins each
   guard, and each one has been verified to fail the suite when removed.
+- **A shape guard checking types is not the same as checking the value is
+  real.** `formatWareki`'s guard originally confirmed a hand-built
+  `Wareki`'s fields had the right types, but not that they described a
+  date that actually exists — `{ era: '令和', eraYear: 8, month: 4, day: 31 }`
+  rendered `'令和8年4月31日'`, April having only 30 days. `assertWareki`
+  now reuses `fromWareki` (rather than a second hand-written copy of "is
+  this a real wareki date", which would just be a second place for the
+  same class of bug) to confirm the `era`/`eraAbbr` field a given format
+  actually reads is both the era's own canonical form — not an alias like
+  the romaji `'Reiwa'`, which `resolveEra` accepts but `EraName` does not
+  — and describes a date that exists within that era. Found by an
+  independent review of the original argument-validation PR, which is why
+  it's called out here specifically: a shape check reads as complete
+  coverage until someone tries a value the shape allows but the domain
+  doesn't.
 - **No error message may carry an unbounded amount of caller input.**
   Everything interpolated into a message goes through `describeValue`,
   which caps the rendering at 200 characters. The Worker copies
@@ -105,7 +120,15 @@ reintroduce a bug that was deliberately fixed.
   50 KB query parameter be reflected back to the client and written to the
   logs at full length. This applies to the Worker's own `BadRequestError`
   messages too, including the 404 route name and the 405 method name.
-  `test/echoBounds.test.ts` drives real requests at every such path.
+  `test/echoBounds.test.ts` drives real requests at every such path. Three
+  more spots were found later by independent review, all in `src/`, not
+  `worker/`: `fromWareki`'s `eraYear`/`month`/`day` and
+  `civilFromInstant`'s `epochMs` used plain `String()` instead of
+  `describeValue`. None of them were reachable through the Worker (its own
+  parameter parsing validates first), which is exactly why they were
+  missed — grep for `String(` and `${` interpolations next to a `throw` in
+  `src/` rather than trusting that Worker coverage implies library
+  coverage.
 - **The data fetch must refuse to shrink.** `assertNoRegression` in
   `scripts/fetch-syukujitsu.ts` compares against the committed
   `OFFICIAL_META`. Without it, an upstream file republished without its

@@ -22,6 +22,7 @@ import {
   InvalidArgumentError,
   InvalidDateInputError,
   InvalidWarekiDateError,
+  JapanCalendarError,
   MeijiReformError,
   UnsupportedWarekiRangeError,
   describeValue,
@@ -164,6 +165,65 @@ export function toWareki(input: DateInput): Wareki {
 }
 
 /**
+ * Guards the ways a hand-built `Wareki` can carry a plausible shape but
+ * describe a date that doesn't exist -- month 0, day 31 of a 30-day month,
+ * an `eraYear` that predates the era, or an `era`/`eraAbbr` that isn't the
+ * era's own canonical name (e.g. the romaji `'Reiwa'` in the `era` field,
+ * which reads and formats without complaint despite `EraName` being defined
+ * as the four-character forms like `'令和'`).
+ *
+ * Reuses `fromWareki` rather than re-implementing "is this a real wareki
+ * date" -- that function already has the era-range and calendar-reform logic,
+ * exercised by its own tests, and a second hand-rolled copy here would be a
+ * second place for the same bug to hide. Only the field the given `format`
+ * actually reads (`era` or `eraAbbr`) is checked; a `Wareki` whose *other*
+ * identifier field disagrees with it (say, `eraAbbr` naming a different era
+ * than `era`) still renders under a format that doesn't read that field --
+ * consistent with `assertWareki`'s existing per-format field selection, and
+ * with `formatWareki`'s per-format contract that each output depends only on
+ * the fields it actually uses.
+ */
+function assertWarekiDescribesARealDate(wareki: Wareki, format: WarekiFormat): void {
+  const identifierField: 'era' | 'eraAbbr' = format === 'abbr' || format === 'abbr-padded' ? 'eraAbbr' : 'era';
+  const identifier = wareki[identifierField];
+
+  let definition: EraDefinition;
+  try {
+    definition = resolveEra(identifier as EraInput);
+  } catch {
+    throw new InvalidArgumentError(
+      `wareki.${identifierField} does not name a known era: ${describeValue(identifier)}. ` +
+        `Build the object with toWareki() rather than by hand.`,
+    );
+  }
+
+  // resolveEra accepts romaji and abbreviations as a convenience for
+  // fromWareki's caller-facing era argument, but a Wareki's own era/eraAbbr
+  // fields are meant to hold that era's canonical form -- accepting an alias
+  // here would let 'Reiwa' (romaji) sit in the `era` field, which nothing
+  // above rejects since it resolves to a real era.
+  const canonical = identifierField === 'eraAbbr' ? definition.abbr : definition.name;
+  if (identifier !== canonical) {
+    throw new InvalidArgumentError(
+      `wareki.${identifierField} (${describeValue(identifier)}) is not the era's canonical ` +
+        `${identifierField === 'eraAbbr' ? 'abbreviation' : 'name'} (${canonical}). ` +
+        `Build the object with toWareki() rather than by hand.`,
+    );
+  }
+
+  try {
+    fromWareki(identifier as EraInput, wareki.eraYear, wareki.month, wareki.day);
+  } catch (error) {
+    if (error instanceof JapanCalendarError) {
+      throw new InvalidArgumentError(
+        `wareki does not describe a date that actually exists: ${error.message}`,
+      );
+    }
+    throw error;
+  }
+}
+
+/**
  * Guards the two ways `formatWareki` used to emit a plausible-looking but
  * wrong string instead of failing.
  *
@@ -191,6 +251,8 @@ function assertWareki(wareki: Wareki, format: WarekiFormat): void {
       );
     }
   }
+
+  assertWarekiDescribesARealDate(wareki, format);
 
   // 'ja' is the only format that reads isGannen, and it reads it as a plain
   // truthiness test -- so a hand-built object without the field silently
@@ -288,10 +350,12 @@ export function fromWareki(
   const year = eraYear === '元' ? 1 : eraYear;
 
   if (!Number.isInteger(year) || year < 1) {
-    throw new InvalidDateInputError(`Era year must be an integer >= 1: ${String(eraYear)}`);
+    throw new InvalidDateInputError(`Era year must be an integer >= 1: ${describeValue(eraYear)}`);
   }
   if (!Number.isInteger(month) || !Number.isInteger(day)) {
-    throw new InvalidDateInputError(`Month and day must be integers: ${String(month)}-${String(day)}`);
+    throw new InvalidDateInputError(
+      `Month and day must be integers: ${describeValue(month)}-${describeValue(day)}`,
+    );
   }
 
   // The 29 days lost to the calendar reform. Meiji years 1-5 are out of

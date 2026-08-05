@@ -45,7 +45,7 @@ const OFFSET_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]
 /** Reduces an instant (epoch milliseconds) to a civil date in JST. */
 export function civilFromInstant(epochMs: number): CivilDate {
   if (!Number.isFinite(epochMs)) {
-    throw new InvalidDateInputError(`Value cannot be interpreted as a date: ${String(epochMs)}`);
+    throw new InvalidDateInputError(`Value cannot be interpreted as a date: ${describeValue(epochMs)}`);
   }
   // Shift the UTC instant by +9h, then truncate to whole days. Using floor
   // means instants before 1970 (negative day numbers) round to the
