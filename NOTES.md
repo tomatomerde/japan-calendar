@@ -30,8 +30,8 @@ PR を作る（dev-standards の共通方針に合わせて2026-08-04に切り�
 npm 公開の直前。ライブラリ・営業日API・和暦・Cloudflare Workers・CI・
 月次データ更新ワークフローまで実装済み。テストは 312 件（14ファイル）。
 
-**作業は PR #1 の上にある**（ブランチ `claude/project-status-check-abt4td`、
-4コミット）。main にはまだ入っていない。中身は3件:
+**PR #1 は 2026-08-05 に main へマージ済み**（ブランチ
+`claude/project-status-check-abt4td`、5コミット）。中身は3件:
 
 1. `CLAUDE.md` を dev-standards の共通テンプレート
    （`CLAUDE.template.md @ 2ddb229`）ベースに再構成。
@@ -55,17 +55,38 @@ npm 公開の直前。ライブラリ・営業日API・和暦・Cloudflare Worke
 ### 次のセッションが最初にやること
 
 1. `npm ci && npm run typecheck && npm test` が通ることを確認（環境の健全性確認）
-2. **PR #1 の状態を見る。** マージ済みならこのブランチは使わず、
-   `main` から切り直す。未マージなら続きはこのブランチに積む
+2. **作業は `main` から新しいブランチを切って始める。**
+   PR #1 はマージ済みなので、あのブランチには積まない
 3. 下記「人間が決めること」がまだ決まっていないなら、まずそれを聞く。
    公開判断が決まらないと、バージョン設定も公開作業も進められない
 4. コードを触るなら `CONTRIBUTING.md` の「Core invariants」を先に読む。
    9項目あり、いずれも一度壊して直した実績があるもの
 
-### まだ見ていない領域（レビューの残り）
+### 次にやると決まっていること: 独立レビュー
+
+**PR #1 の内容を、実装とは別のセッション/モデルでレビューする**（2026-08-05 に
+ユーザーが決定）。運用ルールどおり、実装したのとは別のセッションで回す。
+
+レビュー担当セッションへの申し送り:
+
+- 対象は主に `917072f` と `b0a7453`。日付以外の引数の検証と、
+  エラーメッセージへの入力反射の制限
+- **同一セッションでの自己レビューを一度通してあり、そこで3件出ている。**
+  「塞いだはずのガードに穴が残っていた」（`formatWareki` が `isGannen` を
+  見ていなかった）、「テストで守れない死んだ分岐を書いていた」（変異テストで
+  発覚）、「CHANGELOG のセクションを二重にしていた」。
+  同種の見落としがまだあると考えて臨むほうがよい
+- 見るとよい順: `src/wareki.ts` の `assertWareki`（分岐が多く、
+  形式ごとに必要フィールドが変わる）→ `src/errors.ts` の `describeValue`
+  → `src/businessDays.ts` と `src/holidays.ts` のガード → `worker/index.ts`
+- 検証の作法はこのリポジトリの `CLAUDE.md` と `CONTRIBUTING.md` に従う。
+  特に「ガードを外してテストが落ちるか」を必ず確認する。
+  今回それで死んだ分岐が見つかっている
+
+### まだ見ていない領域
 
 このセッションで見たのは「公開APIを利用者として叩いたときの振る舞い」だけ。
-以下は今回**手を付けていない**:
+以下は**手を付けていない**:
 
 - **祝日ルールそのものの正しさ**。公式データ全1067件との突合に依拠したままで、
   今回は再検証していない
@@ -73,38 +94,32 @@ npm 公開の直前。ライブラリ・営業日API・和暦・Cloudflare Worke
   実際のランタイム上では動かしていない
 - **ブラウザ／バンドラでの取り込み**。`@arethetypeswrong/cli` による
   静的な解決チェックのみ
-- **レビューを別セッション/モデルで回していない**。今回の引数検証まわりは
-  実装と自己レビューが同一セッション。運用ルール上は別モデルで見るべき所
 
 ## 人間が決めること
 
 - **リポジトリを public にするか / npm に公開するか**
-  現在 private。private のまま npm 公開すると、パッケージページの
+  現在 private。**2026-08-05 時点では「まだ public にしない」と判断済み。**
+  private のまま npm 公開すると、パッケージページの
   repository / homepage / bugs リンクが誰からも 404 になり、NOTICE の
   CC BY 表示先も辿れず、利用者は Issue も出せない。公開するなら先に
   repository を public にする必要がある。
-- **npm 公開するならバージョンを決める**（現在 `0.0.0`）
+- **npm 公開するならバージョンを決める**（現在 `0.0.0`）。
+  上の判断が保留なので、これも保留
 
 ## 人間が操作すること
 
 いずれもこのセッションのプロキシからは触れないため、手元の環境が必要。
 
-- **Actions シークレット `DEV_STANDARDS_TOKEN` の設定**
-  `.github/workflows/check-claude-md-drift.yml` が private な dev-standards を
-  checkout するのに必要。未設定だと CLAUDE.md を触る PR でこのジョブだけが
-  赤くなる（他のジョブとリリース物には影響しない）。
-  dev-standards への Contents: Read 権限を持つ Fine-grained PAT を作り、
-  Settings → Secrets and variables → Actions → New repository secret に
-  `DEV_STANDARDS_TOKEN` として登録する。
-
-- **「Allow GitHub Actions to create and approve pull requests」**
-  オフだと `update-holidays.yml` の PR 作成ステップが失敗する（push と
-  データ検証はその前に成功しているので、実害はジョブが赤くなることだけ）。
-  現在オンかオフかは**確認できていない** — プロキシが `/actions/` 配下を
-  読み取りも含めて 403 にするため。ワークフロー実行履歴も1回だけで、
-  それは `target: main` のブートストラップ実行（PR作成ステップを通らない
-  経路）だったので履歴からも判断できない。
-  設定場所: Settings → Actions → General → Workflow permissions
+- **`DEV_STANDARDS_TOKEN` は 2026-11-03 ごろ失効する（要更新）**
+  2026-08-05 に有効期限90日で作成した Fine-grained PAT を登録済みで、
+  `drift` ジョブが緑になることは確認済み。**期限が切れると、設定前と
+  まったく同じ `Input required and not supplied: token` で落ちる。**
+  「設定したのに直らない」に見える壊れ方なので、赤くなったらまず期限を疑う。
+  更新手順: <https://github.com/settings/personal-access-tokens> で当該
+  トークンを開き Regenerate token → 表示された値を Settings → Secrets and
+  variables → Actions の `DEV_STANDARDS_TOKEN` に上書き。
+  設定内容（owner=tomatomerde / repo=dev-standards / Contents: Read-only）は
+  再生成しても引き継がれるので作り直す必要はない。
 
 - **次回の「Update holiday data」実行で push が通ることを確認する**
   `actions/checkout` を v4 → v7 に上げた（v6 でトークンの保存先が
