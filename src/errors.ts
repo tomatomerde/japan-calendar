@@ -31,14 +31,35 @@
 const MAX_DESCRIBED_LENGTH = 200;
 
 function truncate(rendered: string): string {
-  return rendered.length <= MAX_DESCRIBED_LENGTH
-    ? rendered
-    : `${rendered.slice(0, MAX_DESCRIBED_LENGTH)}… (${rendered.length} chars)`;
+  if (rendered.length <= MAX_DESCRIBED_LENGTH) return rendered;
+  // Never cut between the two halves of a surrogate pair. `slice` counts
+  // UTF-16 code units, so a boundary that lands inside one astral character
+  // (emoji, a rare kanji outside the BMP) leaves a lone high surrogate at the
+  // end of the message -- a string that no longer decodes to text and shows
+  // up as U+FFFD wherever the message is logged or displayed. `length` still
+  // reports the untruncated value's own code-unit count.
+  const cut =
+    isHighSurrogate(rendered.charCodeAt(MAX_DESCRIBED_LENGTH - 1)) &&
+    isLowSurrogate(rendered.charCodeAt(MAX_DESCRIBED_LENGTH))
+      ? MAX_DESCRIBED_LENGTH - 1
+      : MAX_DESCRIBED_LENGTH;
+  return `${rendered.slice(0, cut)}… (${rendered.length} chars)`;
+}
+
+function isHighSurrogate(code: number): boolean {
+  return code >= 0xd800 && code <= 0xdbff;
+}
+
+function isLowSurrogate(code: number): boolean {
+  return code >= 0xdc00 && code <= 0xdfff;
 }
 
 export function describeValue(value: unknown): string {
   if (typeof value === 'string') return truncate(JSON.stringify(value));
-  if (typeof value === 'bigint') return `${value}n`;
+  // The `n` suffix keeps a bigint distinguishable from the number with the
+  // same digits: without it `10n` renders as `10`, and the message reads as
+  // if a perfectly good number had been rejected.
+  if (typeof value === 'bigint') return truncate(`${value}n`);
   if (typeof value === 'object' && value !== null) {
     try {
       const json = JSON.stringify(value);

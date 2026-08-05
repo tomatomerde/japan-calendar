@@ -78,6 +78,21 @@ Not yet published to npm.
 
 ### Fixed
 
+- `describeValue`'s `bigint` branch bypassed the 200-character cap that the
+  string, object, and fallback branches all apply, so `isBusinessDay(10n **
+  5000n)` produced a 5002-character message -- the one hole left in "no error
+  message carries an unbounded amount of caller input". The branch had no test
+  at all: deleting it outright left the suite green, because nothing asserted
+  that a `bigint` renders as `10n` rather than as the indistinguishable `10`.
+  Both are now pinned.
+- `describeValue` truncated at a fixed UTF-16 index, which could cut a
+  surrogate pair in half and leave a lone high surrogate at the end of the
+  message -- a string that no longer decodes to text. Reproduced with a
+  198-character string followed by an astral character (`🗾`, U+1F5FE). It was
+  invisible through the Worker, whose `JSON.stringify` escapes the stray
+  surrogate on the way into the response body, so only a direct library caller
+  ever saw it. The cut now steps back one code unit when it would land inside
+  a pair, and only then.
 - An independent review of PR #1's argument-validation work (deliberately
   run in a separate session, per this project's review-separation rule)
   found that `fromWareki`'s `eraYear`, `month`, and `day` arguments, and

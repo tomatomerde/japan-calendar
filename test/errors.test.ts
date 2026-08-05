@@ -26,6 +26,7 @@ import {
   MeijiReformError,
   OutOfRangeError,
   UnsupportedWarekiRangeError,
+  describeValue,
 } from '../src/errors.ts';
 
 describe('エラーの name は明示的なリテラル', () => {
@@ -55,6 +56,65 @@ describe('エラーの name は明示的なリテラル', () => {
     expect(new InvalidDateInputError('boom').message).toBe('boom');
   });
 });
+
+describe('describeValue の描画', () => {
+  it('bigint は n 付きで、同じ桁の number と区別できる', () => {
+    // 区別しないと `isBusinessDay(10n)` のメッセージが
+    // "Value cannot be interpreted as a date: 10" になり、
+    // 何の問題もない数値が撥ねられたようにしか読めない。
+    expect(describeValue(10n)).toBe('10n');
+    expect(describeValue(10)).toBe('10');
+    expect(describeValue(-1n)).toBe('-1n');
+  });
+
+  it('巨大な bigint も上限で切り詰められる', () => {
+    // 上限は「呼び出し側のデータを際限なく反射しない」ためのもの。
+    // bigint だけがこれを迂回して 5002 文字のメッセージを作っていた。
+    const huge = 10n ** 5000n; // 10 進 5001 桁 + 'n'
+    const rendered = describeValue(huge);
+    expect(rendered.length).toBeLessThan(250);
+    expect(rendered).toContain('…');
+    expect(rendered).toContain('(5002 chars)');
+  });
+
+  it('サロゲートペアの途中で切らない', () => {
+    // 'a'.repeat(198) は JSON.stringify の開き引用符と合わせて 199 文字。
+    // 200 文字目に U+1F5FE（🗾 = D83D DDFE）の上位サロゲートだけが残り、
+    // 単独では文字として復号できない文字列になっていた。
+    const rendered = describeValue(`${'a'.repeat(198)}🗾tail`);
+    const body = rendered.slice(0, rendered.indexOf('…'));
+    expect(isWellFormed(body)).toBe(true);
+    // 切り詰めた本体は上位サロゲートを落として 199 文字になる。
+    expect(body).toBe(`"${'a'.repeat(198)}`);
+  });
+
+  it('サロゲートペアが境界に収まるならそのまま残す', () => {
+    // 一律に1文字削ると、切る必要のないペアまで削ってしまう。
+    const rendered = describeValue(`${'a'.repeat(197)}🗾tail`);
+    const body = rendered.slice(0, rendered.indexOf('…'));
+    expect(isWellFormed(body)).toBe(true);
+    expect(body).toBe(`"${'a'.repeat(197)}🗾`);
+  });
+});
+
+/**
+ * `String.prototype.isWellFormed` is Node 20+, which is this package's floor,
+ * but the test runs on the dev Node. Implemented here so the assertion does
+ * not depend on the runtime having it.
+ */
+function isWellFormed(text: string): boolean {
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = text.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return false;
+      index += 1;
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      return false;
+    }
+  }
+  return true;
+}
 
 describe('ミニファイしても name が壊れない', () => {
   it('esbuild --minify を通しても各 name がリテラルのまま残る', async () => {
