@@ -7,7 +7,8 @@
 （積むと再開時に「で、何をすればいいのか」が埋もれる）。
 恒久的な設計判断は `CONTRIBUTING.md`。
 
-最終更新: 2026-08-05（独立レビューとその修正を反映）
+最終更新: 2026-08-05（PR #2 マージ後の引き継ぎ。dev-standards 同期と
+`describeValue` の残件2件を反映）
 
 ## 最初に: どのリポジトリで作業するか
 
@@ -28,45 +29,52 @@ PR を作る（dev-standards の共通方針に合わせて2026-08-04に切り�
 ## 現在地
 
 npm 公開の直前。ライブラリ・営業日API・和暦・Cloudflare Workers・CI・
-月次データ更新ワークフローまで実装済み。テストは 321 件（14ファイル）。
+月次データ更新ワークフローまで実装済み。テストは 325 件（14ファイル）。
 
-PR #1（引数検証・CLAUDE.md 再構成・Actions v7 化）は main へマージ済み。
-**その独立レビュー（別セッションで実施、2026-08-05）で見つかった2件を
-ブランチ `claude/japan-calendar-pr1-review-j1kxi7` 上で修正済み**（まだ
-push/PR 前）:
+PR #1（引数検証・CLAUDE.md 再構成・Actions v7 化）と PR #2（その独立レビューで
+見つかった `describeValue` 経由漏れ・`formatWareki` の実在性チェック）はどちらも
+main へマージ済み。**コード上の未処理の指摘は現在ない。**
 
-1. `fromWareki` の `eraYear`/`month`/`day`、`civilFromInstant` の `epochMs`
-   が `describeValue` を経由せず生の `String()` で全反射していた
-   （50KB 入力で実測）。`describeValue` 経由に修正
-2. `formatWareki` の手組みオブジェクトガードが型しか見ておらず、
-   存在しない和暦日（4月31日、`month: 0`、負の `eraYear`、ローマ字の
-   `'Reiwa'` を `era` フィールドに等）をもっともらしく描画していた。
-   `assertWareki` に `fromWareki` を再利用した実在性チェックを追加
+**進行中: ブランチ `claude/japan-calendar-pr1-review-5cgr7m`**（main から分岐）。
+以下を積んである:
 
-いずれも `npm run typecheck && npm test && npm run test:tz` 通過、
-CI の `build`/`consume-on-node20` 相当のコマンドをローカルで実行して確認済み
-（Node 20 自体はこのサンドボックスに無いため Node 22 で代替実行、CI 本番の
-Node 20 実行では未確認）。`@arethetypeswrong/cli` 4項目green。
-新しいガードは全て**外すとテストが落ちることを確認済み**。
-`CONTRIBUTING.md` の Core invariants と `CHANGELOG.md` に反映済み。
+1. dev-standards の原本と同期。原本 `2ddb229 → 8776609` の差分は
+   `examples/check-claude-md-drift.yml` の1件のみ（`DEV_STANDARDS_TOKEN`
+   未設定時に notice を出してスキップする。未設定のまま `actions/checkout`
+   にトークンを渡すとジョブが hard-fail するため）。当リポジトリの
+   `.github/workflows/check-claude-md-drift.yml` に取り込み済み。
+   **`actions/checkout` は当リポジトリ側の v7 を維持**（原本の例はまだ v4）。
+   `CLAUDE.md` の共通部分は原本 8776609 と完全一致（差分なし）で、
+   1行目の原本参照 SHA を更新した
+2. PR #2 のレビューで見送っていた `describeValue` の2件を処理:
+   - **bigint 分岐が 200 文字上限を迂回していた**（`truncate` を通していない）。
+     `isBusinessDay(10n ** 5000n)` で 5002 文字のメッセージを実測。
+     「エラーメッセージが呼び出し側の入力を無制限に反射しない」という
+     不変条件の唯一の穴だった。修正のうえテストを追加
+     （分岐そのものを消してもテストが落ちなかった件も同時に解消）
+   - **`truncate` がサロゲートペアを分断しうる**件。`'a'.repeat(198)` +
+     `🗾` で上位サロゲート単独が残ることを実測。境界に掛かるときだけ
+     1コードユニット手前で切るよう修正（一律に1文字削ると、収まっている
+     ペアまで削れるので、そちらもテストで固定）
 
-**今回のレビューで見つかったが対応を見送った2件**（ユーザー判断・優先度低）:
-
-- `describeValue` の bigint 分岐（`` `${value}n` ``）を守るテストが無い。
-  分岐を消しても312件全パス（変異生存）
-- `truncate` がサロゲートペア境界で切れる可能性がある。実害なしと確認済み
-  （Worker の `JSON.stringify` がエスケープするため）が、ライブラリ単体では
-  未対応
+検証: `npm run typecheck` / `npm test`（325件）/ `npm run test:tz`
+（Asia/Tokyo・UTC・Pacific/Kiritimati・Pacific/Midway の4TZ）すべて通過。
+新テストは**変異4種（bigint分岐削除・bigintのtruncate外し・サロゲート
+バックオフ削除・常時バックオフ）すべてで落ちることを確認済み**。
+ドリフトワークフローは YAML から `run:` ブロックを `yq` で機械的に抽出し、
+トークンあり／なしの両方を実行して確認した（GitHub Actions 上での実行は未確認）。
 
 ### 次のセッションが最初にやること
 
 1. `npm ci && npm run typecheck && npm test` が通ることを確認（環境の健全性確認）
-2. **このブランチ（`claude/japan-calendar-pr1-review-j1kxi7`）を push し、PR を作る。**
-   まだ push していない
+2. 上記ブランチの PR の CI を確認する。とくに
+   **`check-claude-md-drift` は今回書き換えたので、実際に緑になるか要確認**
+   （`CLAUDE.md` を変更した PR でしか発火しない）
 3. 下記「人間が決めること」がまだ決まっていないなら、まずそれを聞く。
    公開判断が決まらないと、バージョン設定も公開作業も進められない
 4. コードを触るなら `CONTRIBUTING.md` の「Core invariants」を先に読む。
-   10項目あり、いずれも一度壊して直した実績があるもの
+   11項目あり、いずれも一度壊して直した実績があるもの
+5. 作業するなら main から新しいブランチを切る。マージ済みブランチは再利用しない
 
 ### まだ見ていない領域
 
@@ -122,6 +130,12 @@ Node 20 実行では未確認）。`@arethetypeswrong/cli` 4項目green。
   失敗する場合の対処は、Commit and push ステップに
   `env: GH_TOKEN`/明示的な remote URL 設定を足すこと。
 
+- **dev-standards 側へ `actions/checkout` v7 を戻す**
+  原本の `examples/check-claude-md-drift.yml` はまだ `actions/checkout@v4`。
+  当リポジトリは PR #1 で v7 に上げてあり、今回の同期でもそちらを維持した。
+  原本を直さないと、次に別案件へコピーしたときに v4 に戻る。
+  dev-standards は別リポジトリなので、このセッションからは PR を出していない。
+
 GitHub の Topics は設定済み（API で確認済み、12件）。
 
 ## レビュー状況
@@ -135,7 +149,7 @@ GitHub の Topics は設定済み（API で確認済み、12件）。
 | `src/wareki.ts` | 1873–2099年の全82,910日で往復検証。変異12種すべて検出 |
 | `src/holidays.ts` | 公式データ全1067件と一致。凍結・年またぎ導出の不変条件を検証 |
 | `src/businessDays.ts` | 差分テスト計4,398ケースで不一致0。変異5種すべて検出 |
-| `src/errors.ts` | ミニファイ耐性をミニファイヤ実行で検証 |
+| `src/errors.ts` | ミニファイ耐性をミニファイヤ実行で検証。`describeValue` の bigint・サロゲート境界も変異4種で検証 |
 | `src/index.ts` | 公開API 35件を厳密に固定（増減とも検出） |
 | `src/rules/` | equinox/observed/holidayLaw/exceptions すべて変異検出。1949–54年は法律を根拠に固定 |
 | `scripts/` | fetch/report とも変異検出。退行ガードあり |
