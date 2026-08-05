@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest';
 import worker from '../worker/index.ts';
-import { formatWareki, fromWareki, isBusinessDay, toCivilDate } from '../src/index.ts';
+import { civilFromInstant, formatWareki, fromWareki, isBusinessDay, toCivilDate } from '../src/index.ts';
 
 const BIG = 'x'.repeat(50_000);
 /** describeValue の上限 200 文字 + 各メッセージの定型文の余裕。 */
@@ -73,6 +73,12 @@ describe('ライブラリ: 長い入力をメッセージに反射しない', ()
     ['isBusinessDay（オブジェクト）', () => isBusinessDay({ note: BIG } as never)],
     ['isBusinessDay（calendar）', () => isBusinessDay('2026-08-03', BIG as never)],
     ['fromWareki（元号）', () => fromWareki(BIG as never, 1, 5, 1)],
+    // レビューで発見: fromWareki の eraYear/month/day は describeValue を経由しておらず、
+    // 素の String() で全反射していた（呼び出し側は Worker の parseInteger を経由しない
+    // ため、この経路が唯一の防御線）。
+    ['fromWareki（元号年）', () => fromWareki('R', BIG as never, 5, 1)],
+    ['fromWareki（月）', () => fromWareki('R', 1, BIG as never, 1)],
+    ['civilFromInstant（epochMs）', () => civilFromInstant(BIG as never)],
     ['formatWareki（format）', () => formatWareki(toCivilDate('2019-05-01') as never, BIG as never)],
   ];
 

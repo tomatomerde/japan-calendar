@@ -105,7 +105,15 @@ reintroduce a bug that was deliberately fixed.
   50 KB query parameter be reflected back to the client and written to the
   logs at full length. This applies to the Worker's own `BadRequestError`
   messages too, including the 404 route name and the 405 method name.
-  `test/echoBounds.test.ts` drives real requests at every such path.
+  `test/echoBounds.test.ts` drives real requests at every such path. Three
+  more spots were found later by independent review, all in `src/`, not
+  `worker/`: `fromWareki`'s `eraYear`/`month`/`day` and
+  `civilFromInstant`'s `epochMs` used plain `String()` instead of
+  `describeValue`. None of them were reachable through the Worker (its own
+  parameter parsing validates first), which is exactly why they were
+  missed — grep for `String(` and `${` interpolations next to a `throw` in
+  `src/` rather than trusting that Worker coverage implies library
+  coverage.
 - **The data fetch must refuse to shrink.** `assertNoRegression` in
   `scripts/fetch-syukujitsu.ts` compares against the committed
   `OFFICIAL_META`. Without it, an upstream file republished without its

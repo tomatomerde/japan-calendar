@@ -78,6 +78,15 @@ Not yet published to npm.
 
 ### Fixed
 
+- An independent review of PR #1's argument-validation work (deliberately
+  run in a separate session, per this project's review-separation rule)
+  found that `fromWareki`'s `eraYear`, `month`, and `day` arguments, and
+  `civilFromInstant`'s `epochMs` argument, rendered their bad values with
+  plain `String()` instead of `describeValue`, so a 50 KB `eraYear` or
+  `month` argument was echoed back at full length -- the same failure mode
+  `describeValue`'s 200-character cap exists to close everywhere else. A bad
+  object also printed `[object Object]` again, the exact symptom the
+  original fix eliminated elsewhere. All four now go through `describeValue`.
 - Arguments other than dates were not validated, so several ordinary
   mistakes produced a confident wrong answer instead of an error. Every one
   of these now throws `InvalidArgumentError`:

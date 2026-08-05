@@ -288,10 +288,12 @@ export function fromWareki(
   const year = eraYear === '元' ? 1 : eraYear;
 
   if (!Number.isInteger(year) || year < 1) {
-    throw new InvalidDateInputError(`Era year must be an integer >= 1: ${String(eraYear)}`);
+    throw new InvalidDateInputError(`Era year must be an integer >= 1: ${describeValue(eraYear)}`);
   }
   if (!Number.isInteger(month) || !Number.isInteger(day)) {
-    throw new InvalidDateInputError(`Month and day must be integers: ${String(month)}-${String(day)}`);
+    throw new InvalidDateInputError(
+      `Month and day must be integers: ${describeValue(month)}-${describeValue(day)}`,
+    );
   }
 
   // The 29 days lost to the calendar reform. Meiji years 1-5 are out of
