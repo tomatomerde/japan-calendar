@@ -22,10 +22,18 @@ name: Check CLAUDE.md drift
 # supplied: token". (secrets can't be tested directly in `if:` expressions
 # here, so the token is mapped to a job-level env var and probed in a step.)
 #
+# A token that is set but no longer works is a separate case: the probe only
+# tests for emptiness, so an expired or revoked PAT reaches actions/checkout
+# and fails there. That step is therefore continue-on-error, and the
+# comparison is gated on it having succeeded, so the job stays green and
+# reports the broken token as a warning instead. Fine-grained PATs expire, so
+# this is a matter of when, not whether.
+#
 # Requirements (manual, one-time per project repo):
 #   - A fine-grained PAT with Contents: Read access to
 #     tomatomerde/dev-standards, stored as the Actions secret
-#     DEV_STANDARDS_TOKEN (dev-standards is private).
+#     DEV_STANDARDS_TOKEN (dev-standards is private). It expires; renewing it
+#     is what the warning above is for.
 
 on:
   pull_request:
@@ -50,14 +58,20 @@ jobs:
             echo "::notice file=CLAUDE.md::Maintainer-only check skipped: DEV_STANDARDS_TOKEN is not available (expected on pull requests from forks — nothing for contributors to do here). ／ メンテナ用チェックをスキップしました。fork からの PR では正常な動作で、コントリビュータ側の対応は不要です。有効化はメンテナが Actions シークレットで行います。"
           fi
       - name: Check out the canonical template
+        id: canonical
         if: steps.token.outputs.present == 'true'
+        continue-on-error: true
         uses: actions/checkout@v7
         with:
           repository: tomatomerde/dev-standards
           token: ${{ secrets.DEV_STANDARDS_TOKEN }}
           path: .dev-standards
+      - name: Report a token that no longer works
+        if: steps.canonical.outcome == 'failure'
+        run: |
+          echo "::warning file=CLAUDE.md::Maintainer-only check could not run: DEV_STANDARDS_TOKEN is set but the checkout of dev-standards failed (an expired or revoked PAT looks like this). Contributors can ignore this. ／ メンテナ用チェックを実行できませんでした。DEV_STANDARDS_TOKEN は設定されていますが dev-standards の checkout に失敗しています（PAT の失効・失権でこうなります）。コントリビュータ側の対応は不要です。"
       - name: Compare common section against canonical template
-        if: steps.token.outputs.present == 'true'
+        if: steps.canonical.outcome == 'success'
         run: |
           extract() { awk '/^# ここから下は共通/,0' "$1"; }
           if diff <(extract .dev-standards/CLAUDE.template.md) <(extract CLAUDE.md); then
