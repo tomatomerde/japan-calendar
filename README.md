@@ -14,8 +14,38 @@ or `false`** — those two holidays aren't legally fixed until the Official
 Gazette publishes the following year's "Calendrical Data" each February,
 so any date beyond that is inherently a forecast, not a fact.
 
-Holiday judgment, business-day arithmetic, wareki conversion, and the
-Cloudflare Workers HTTP API are all implemented. Not yet published to npm.
+## Install
+
+```sh
+npm install japan-calendar
+```
+
+```ts
+import { isHoliday, addBusinessDays } from 'japan-calendar';
+
+isHoliday('2026-05-05');
+// → { date: { year: 2026, month: 5, day: 5 }, name: 'こどもの日',
+//     category: 'statutory', confirmed: true }
+
+isHoliday('2026-05-07');
+// → null
+
+addBusinessDays('2026-05-01', 3);
+// → { year: 2026, month: 5, day: 11 }
+//   Three business days after Friday 5/1 lands on Monday 5/11: Golden Week
+//   eats 5/3–5/6 (including the substitute holiday for 5/3 falling on a Sunday).
+```
+
+Node.js 20+. No dependencies, no runtime data fetching, and the ESM bundle runs
+unchanged in browsers and on Cloudflare Workers.
+
+> **Status: pre-release.** Holiday judgment, business-day arithmetic, wareki
+> conversion, and the Cloudflare Workers HTTP API are all implemented and
+> tested, but **nothing has been published to npm yet** — the install command
+> above will not resolve until the first release. The version is `0.x`, so the
+> API may still change. This is a personal project maintained on a best-effort
+> basis; see "Support scope and disclaimer" below before relying on it for
+> anything that matters.
 
 ## Design principles
 
