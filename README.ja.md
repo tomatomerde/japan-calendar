@@ -5,14 +5,42 @@
 日本の祝日・営業日・和暦を扱う、依存ゼロの TypeScript ライブラリ。
 npm パッケージと Cloudflare Workers 上の HTTP API の2形態で提供する。
 
-祝日判定・営業日計算・和暦変換・Cloudflare Workers 版 HTTP API まで実装済み。
-npm への実際の公開はまだ行っていない。
-
 多くの無料の祝日ライブラリは「祝日かどうか」しか判定しないが、このライブラリは
 **営業日計算（`isBusinessDay` / `addBusinessDays` / `businessDaysBetween`）を
 一次機能として持ち**、さらに**春分の日・秋分の日には `confirmed: true/false`
 のフラグを付与する**（前年2月の官報「暦要項」で正式決定されるまでは暫定値である
 ことを明示する）。
+
+## インストール
+
+```sh
+npm install japan-calendar
+```
+
+```ts
+import { isHoliday, addBusinessDays } from 'japan-calendar';
+
+isHoliday('2026-05-05');
+// → { date: { year: 2026, month: 5, day: 5 }, name: 'こどもの日',
+//     category: 'statutory', confirmed: true }
+
+isHoliday('2026-05-07');
+// → null
+
+addBusinessDays('2026-05-01', 3);
+// → { year: 2026, month: 5, day: 11 }
+//   金曜 5/1 の3営業日後は月曜 5/11。ゴールデンウィークで 5/3〜5/6 が潰れる
+//   （5/3 が日曜のため振替休日が入る）
+```
+
+Node.js 20 以降。依存ゼロ、実行時のデータ取得なし。ESM バンドルはブラウザと
+Cloudflare Workers でもそのまま動く。
+
+> **状態: 公開前。** 祝日判定・営業日計算・和暦変換・Cloudflare Workers 版
+> HTTP API は実装とテストが済んでいるが、**npm にはまだ公開していない**——
+> 上のインストールコマンドは初回リリースまで解決しない。バージョンは `0.x` で、
+> API は変わりうる。個人プロジェクトであり、対応はベストエフォートで行う。
+> 業務で依存する前に下の「サポート範囲と免責」を読むこと。
 
 ## 設計方針
 
