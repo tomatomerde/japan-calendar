@@ -1,6 +1,11 @@
-**English** | [日本語](./README.ja.md)
-
 # japan-calendar
+
+[![CI](https://github.com/tomatomerde/japan-calendar/actions/workflows/ci.yml/badge.svg)](https://github.com/tomatomerde/japan-calendar/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-brightgreen.svg)](#install)
+[![dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen.svg)](./package.json)
+
+**English** | [日本語](./README.ja.md)
 
 A zero-dependency TypeScript library for Japanese holidays, business-day
 arithmetic, and wareki (Japanese era) date conversion — shipped both as an
@@ -81,22 +86,30 @@ Requiring both to be present avoids mistakenly treating a year that was
 only partially appended mid-year as finalized. Equinox dates up to and
 including this year are `confirmed: true`; beyond it, `confirmed: false`.
 
-## Updating the official data
+## Cloudflare Workers
 
-The Cabinet Office's site is blocked by the dev environment's egress
-policy, so the CSV is fetched via GitHub Actions instead.
+`worker/index.ts` is a thin HTTP layer that just imports the library.
+Zero runtime dependencies, same as the library itself.
 
 ```sh
-# Local (requires network access)
-node scripts/fetch-syukujitsu.ts
-
-# View a summary of the already-baked-in data (no network needed)
-node scripts/report.ts
+npm run worker:dev      # run locally (wrangler dev)
+npm run worker:deploy   # deploy to Cloudflare
 ```
 
-The **Update holiday data** GitHub Actions workflow runs on the 1st of
-every month and pushes any diff to the `chore/update-holiday-data`
-branch. It can also be run manually via `workflow_dispatch`.
+```
+GET /v1/meta
+GET /v1/holidays/:year                 e.g. /v1/holidays/2026
+GET /v1/holidays/:date                 e.g. /v1/holidays/2026-09-22
+GET /v1/business-days/add?date=&days=&calendar=
+GET /v1/business-days/between?from=&to=&calendar=
+GET /v1/wareki?date=
+GET /v1/wareki/reverse?era=&year=&month=&day=
+```
+
+Responses where every holiday is finalized (`confirmed: true`) get a
+long cache lifetime; responses with a tentative holiday get a short one.
+Errors are the library's own exceptions, passed straight through as
+`{ error: { type, message } }` with a 4xx status.
 
 ## API
 
@@ -217,6 +230,50 @@ vernal/autumnal dates in total) with **zero discrepancies**. Years
 1949-1954 (outside the official data's coverage) have no way to be
 verified and rely purely on this formula's extrapolation.
 
+## Support scope and disclaimer
+
+What this library covers, and what it deliberately does not:
+
+- **Supported years.** Holiday and business-day functions cover
+  1949-2099; anything outside raises `OutOfRangeError`. Wareki conversion
+  covers Meiji 6-1-1 (1873-01-01) onward.
+- **Equinox dates beyond `equinoxConfirmedThrough` are forecasts, not
+  facts.** They are returned with `confirmed: false`. Don't treat them as
+  settled dates — check the flag.
+- **1949-1954 cannot be independently verified.** Those six years fall
+  outside the official data, so they rely on the approximation formula's
+  extrapolation. They are pinned by tests derived from the text of the
+  1948 Public Holiday Law, which is the best available check, not a
+  confirmation against published dates.
+- **Only two calendars are provided**, `'national'` and `'bank'`.
+  Company- or industry-specific closure days are out of scope.
+- **No warranty.** The software is provided "AS IS" under the MIT
+  License. Holiday and business-day results are not guaranteed to be
+  fit for legal, financial, or regulatory decisions; verify against the
+  Cabinet Office's own publication where correctness is load-bearing.
+
+## For maintainers
+
+The rest of this file is about working on the library rather than using it.
+Contributors should start from [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+## Updating the official data
+
+The Cabinet Office's site is blocked by the dev environment's egress
+policy, so the CSV is fetched via GitHub Actions instead.
+
+```sh
+# Local (requires network access)
+node scripts/fetch-syukujitsu.ts
+
+# View a summary of the already-baked-in data (no network needed)
+node scripts/report.ts
+```
+
+The **Update holiday data** GitHub Actions workflow runs on the 1st of
+every month and pushes any diff to the `chore/update-holiday-data`
+branch. It can also be run manually via `workflow_dispatch`.
+
 ## Test suite
 
 - `test/officialMatch.test.ts` — Checks the rule engine's output against
@@ -272,53 +329,6 @@ npm run build           # emits dist/esm (ESM + type declarations) and dist/cjs 
 separately. `dist/cjs/package.json` (`{"type":"commonjs"}`) is written
 during the build so the CJS output doesn't clash with the repo root's
 `"type": "module"`.
-
-## Cloudflare Workers
-
-`worker/index.ts` is a thin HTTP layer that just imports the library.
-Zero runtime dependencies, same as the library itself.
-
-```sh
-npm run worker:dev      # run locally (wrangler dev)
-npm run worker:deploy   # deploy to Cloudflare
-```
-
-```
-GET /v1/meta
-GET /v1/holidays/:year                 e.g. /v1/holidays/2026
-GET /v1/holidays/:date                 e.g. /v1/holidays/2026-09-22
-GET /v1/business-days/add?date=&days=&calendar=
-GET /v1/business-days/between?from=&to=&calendar=
-GET /v1/wareki?date=
-GET /v1/wareki/reverse?era=&year=&month=&day=
-```
-
-Responses where every holiday is finalized (`confirmed: true`) get a
-long cache lifetime; responses with a tentative holiday get a short one.
-Errors are the library's own exceptions, passed straight through as
-`{ error: { type, message } }` with a 4xx status.
-
-## Support scope and disclaimer
-
-What this library covers, and what it deliberately does not:
-
-- **Supported years.** Holiday and business-day functions cover
-  1949-2099; anything outside raises `OutOfRangeError`. Wareki conversion
-  covers Meiji 6-1-1 (1873-01-01) onward.
-- **Equinox dates beyond `equinoxConfirmedThrough` are forecasts, not
-  facts.** They are returned with `confirmed: false`. Don't treat them as
-  settled dates — check the flag.
-- **1949-1954 cannot be independently verified.** Those six years fall
-  outside the official data, so they rely on the approximation formula's
-  extrapolation. They are pinned by tests derived from the text of the
-  1948 Public Holiday Law, which is the best available check, not a
-  confirmation against published dates.
-- **Only two calendars are provided**, `'national'` and `'bank'`.
-  Company- or industry-specific closure days are out of scope.
-- **No warranty.** The software is provided "AS IS" under the MIT
-  License. Holiday and business-day results are not guaranteed to be
-  fit for legal, financial, or regulatory decisions; verify against the
-  Cabinet Office's own publication where correctness is load-bearing.
 
 ## Contributing
 

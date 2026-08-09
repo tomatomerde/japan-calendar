@@ -1,6 +1,11 @@
-[English](./README.md) | **日本語**
-
 # japan-calendar
+
+[![CI](https://github.com/tomatomerde/japan-calendar/actions/workflows/ci.yml/badge.svg)](https://github.com/tomatomerde/japan-calendar/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-brightgreen.svg)](#インストール)
+[![dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen.svg)](./package.json)
+
+[English](./README.md) | **日本語**
 
 日本の祝日・営業日・和暦を扱う、依存ゼロの TypeScript ライブラリ。
 npm パッケージと Cloudflare Workers 上の HTTP API の2形態で提供する。
@@ -69,22 +74,29 @@ equinoxConfirmedThrough = 「春分の日」と「秋分の日」を両方含む
 誤って確定扱いする事故を防いでいる。この年以前の春分/秋分は
 `confirmed: true`、これより後は `confirmed: false` になる。
 
-## 公式データの更新
+## Cloudflare Workers 版
 
-内閣府のサイトは開発環境の egress ポリシーで遮断されているため、
-CSV の取得は GitHub Actions 上で行う。
+`worker/index.ts` はライブラリ本体を import するだけの薄いHTTP層。
+ランタイム依存はライブラリ同様ゼロ。
 
 ```sh
-# ローカル（要ネットワーク到達性）
-node scripts/fetch-syukujitsu.ts
-
-# 焼き込み済みデータの集計だけ見る（ネットワーク不要）
-node scripts/report.ts
+npm run worker:dev      # ローカルで起動 (wrangler dev)
+npm run worker:deploy   # Cloudflare にデプロイ
 ```
 
-GitHub Actions の **Update holiday data** ワークフローが毎月1日に実行され、
-差分があれば `chore/update-holiday-data` ブランチに push する。
-`workflow_dispatch` で手動実行もできる。
+```
+GET /v1/meta
+GET /v1/holidays/:year                 例: /v1/holidays/2026
+GET /v1/holidays/:date                 例: /v1/holidays/2026-09-22
+GET /v1/business-days/add?date=&days=&calendar=
+GET /v1/business-days/between?from=&to=&calendar=
+GET /v1/wareki?date=
+GET /v1/wareki/reverse?era=&year=&month=&day=
+```
+
+祝日が確定済み（`confirmed: true`）のレスポンスは長期キャッシュ、暫定を
+含む場合は短期キャッシュを返す。エラーはライブラリの例外をそのまま
+`{ error: { type, message } }` の形で400番台に変換する。
 
 ## API
 
@@ -200,6 +212,46 @@ formatWareki(w, 'JA');                 // ✗ InvalidArgumentError — 未知の
 確認済み。1949〜1954年（公式データの収録範囲外）は検証手段がなく、
 この式による外挿でしかない。
 
+## サポート範囲と免責
+
+このライブラリが扱う範囲と、意図的に扱わない範囲:
+
+- **対応年。** 祝日判定・営業日計算は 1949–2099年。範囲外は
+  `OutOfRangeError`。和暦変換は明治6年1月1日（1873-01-01）以降。
+- **`equinoxConfirmedThrough` を超える春分・秋分は予報であって事実ではない。**
+  `confirmed: false` を付けて返す。確定した日付として扱わず、フラグを見ること。
+- **1949–1954年は独立した検証ができない。** この6年は公式データの範囲外で、
+  近似式の外挿に依拠している。1948年の祝日法の条文を根拠にテストで固定して
+  あるが、これは得られる中で最善のチェックであって、公表値との突き合わせでは
+  ない。
+- **カレンダーは `'national'` と `'bank'` の2種のみ。** 企業・業界独自の
+  休業日は対象外。
+- **無保証。** ソフトウェアは MIT ライセンスの "AS IS" 提供。祝日・営業日の
+  判定結果が法的・金融的・規制上の判断に適することは保証しない。正確性が
+  重要な用途では内閣府の公表データで確認すること。
+
+## メンテナ向け
+
+ここから下はライブラリを「使う」話ではなく「触る」話。コントリビュートは
+[CONTRIBUTING.md](./CONTRIBUTING.md)（英語）から。
+
+## 公式データの更新
+
+内閣府のサイトは開発環境の egress ポリシーで遮断されているため、
+CSV の取得は GitHub Actions 上で行う。
+
+```sh
+# ローカル（要ネットワーク到達性）
+node scripts/fetch-syukujitsu.ts
+
+# 焼き込み済みデータの集計だけ見る（ネットワーク不要）
+node scripts/report.ts
+```
+
+GitHub Actions の **Update holiday data** ワークフローが毎月1日に実行され、
+差分があれば `chore/update-holiday-data` ブランチに push する。
+`workflow_dispatch` で手動実行もできる。
+
 ## テストの構成
 
 - `test/officialMatch.test.ts` — ルールエンジンの出力を、内閣府公式データの
@@ -249,48 +301,6 @@ npm run build           # dist/esm（ESM + 型定義）と dist/cjs（CommonJS�
 `package.json` の `exports` で ESM/CJS/型定義を出し分ける。CJS側には
 `dist/cjs/package.json`（`{"type":"commonjs"}`）を生成時に配置し、
 リポジトリ直下の `"type": "module"` と衝突しないようにしている。
-
-## Cloudflare Workers 版
-
-`worker/index.ts` はライブラリ本体を import するだけの薄いHTTP層。
-ランタイム依存はライブラリ同様ゼロ。
-
-```sh
-npm run worker:dev      # ローカルで起動 (wrangler dev)
-npm run worker:deploy   # Cloudflare にデプロイ
-```
-
-```
-GET /v1/meta
-GET /v1/holidays/:year                 例: /v1/holidays/2026
-GET /v1/holidays/:date                 例: /v1/holidays/2026-09-22
-GET /v1/business-days/add?date=&days=&calendar=
-GET /v1/business-days/between?from=&to=&calendar=
-GET /v1/wareki?date=
-GET /v1/wareki/reverse?era=&year=&month=&day=
-```
-
-祝日が確定済み（`confirmed: true`）のレスポンスは長期キャッシュ、暫定を
-含む場合は短期キャッシュを返す。エラーはライブラリの例外をそのまま
-`{ error: { type, message } }` の形で400番台に変換する。
-
-## サポート範囲と免責
-
-このライブラリが扱う範囲と、意図的に扱わない範囲:
-
-- **対応年。** 祝日判定・営業日計算は 1949–2099年。範囲外は
-  `OutOfRangeError`。和暦変換は明治6年1月1日（1873-01-01）以降。
-- **`equinoxConfirmedThrough` を超える春分・秋分は予報であって事実ではない。**
-  `confirmed: false` を付けて返す。確定した日付として扱わず、フラグを見ること。
-- **1949–1954年は独立した検証ができない。** この6年は公式データの範囲外で、
-  近似式の外挿に依拠している。1948年の祝日法の条文を根拠にテストで固定して
-  あるが、これは得られる中で最善のチェックであって、公表値との突き合わせでは
-  ない。
-- **カレンダーは `'national'` と `'bank'` の2種のみ。** 企業・業界独自の
-  休業日は対象外。
-- **無保証。** ソフトウェアは MIT ライセンスの "AS IS" 提供。祝日・営業日の
-  判定結果が法的・金融的・規制上の判断に適することは保証しない。正確性が
-  重要な用途では内閣府の公表データで確認すること。
 
 ## コントリビュート
 
