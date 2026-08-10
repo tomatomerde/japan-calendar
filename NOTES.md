@@ -7,8 +7,10 @@
 （積むと再開時に「で、何をすればいいのか」が埋もれる）。
 恒久的な設計判断は `CONTRIBUTING.md`。
 
-最終更新: 2026-08-06（dev-standards 原本 `b2996af` への同期。昇格した2項目を
-固有セクションから削除し、済んだ追随項目を NOTES から落とした）
+最終更新: 2026-08-10（`japan-calendar@0.1.0` を npm へ公開し、ワークフローを
+trusted publishing に切り替えた。済んだ項目を落とし、残った1点を書き直した）
+
+**npm 公開済み**: `japan-calendar@0.1.0`（2026-08-10、provenance attestation 付き）。
 
 ## 最初に: どのリポジトリで作業するか
 
@@ -110,7 +112,9 @@ dev-standards の原本とも同期した。経緯は `CHANGELOG.md` とコミ�
    npm に出すと壊れるリンク」は `NOTES.md`「人間が決めること」に書いてある前提
 4. **`package.json` の公開設定。** `files` / `exports` / `engines` /
    `publishConfig`。`npm pack --dry-run` の一覧は 2026-08-05 に目視済み。
-   バージョンは 2026-08-10 に `0.1.0-rc.1` にした
+   `0.1.0` として公開済み（rc は挟まなかった——**新規の名前への初回公開は `--tag` に
+   関係なく `latest` になる**ため。[`docs/releasing.md`](docs/releasing.md) の
+   「Release candidates」節）
 
 すでに検証済みなので**再確認しなくてよい**もの（コストを使わないこと）:
 
@@ -133,22 +137,17 @@ dev-standards の原本とも同期した。経緯は `CHANGELOG.md` とコミ�
   ジョブの `run:` ブロックを `yq` で抽出してそのまま実行。
   `npm install <tarball>` → `require()` / `import` 双方が通った
 
-## 人間が決めること
-
-- **`v0.1.0` のタグを打つ。** `package.json` と CHANGELOG は `0.1.0` に揃えてあり、
-  `NPM_TOKEN` も設定済み。rc は挟まない——**新規の名前への初回公開は `--tag` に
-  関係なく `latest` になる**ので、rc を出しても `npm install` を守れないうえ、
-  バージョンを1つ消費するだけになる（姉妹プロジェクトで実証済み。
-  [`docs/releasing.md`](docs/releasing.md) の「Release candidates」節）
-
 ## 人間が操作すること
 
 いずれもこのセッションのプロキシからは触れないため、手元の環境が必要。
 
-- **`NPM_TOKEN` は 2026-08-10 から90日で失効する。** それまでに npm trusted
-  publishing へ移行してトークンを消すのが目標。trusted publishing は
-  **パッケージが存在しないと設定できない**（npm/cli#8544 は現在も open）ので、
-  0.1.0 の公開後でないと着手できない
+- **trusted publishing 経由のリリースがまだ1本も出ていない。** 移行自体は済んでいて
+  ワークフローにトークンは無いが、**通ることを確かめる手段が次のリリースしかない**。
+  dry run は `npm publish` に到達せず、`v0.1.0` を押し直しても
+  「既にレジストリにある」でスキップされる（2026-08-10 の dry run の出力がそれ）。
+  → **`NPM_TOKEN` の secret は消さない。** 現在は未使用だが、交換が失敗したときの
+  戻り先になる。**このトークンは 2026-08-10 から90日で失効する**ので、それまでに
+  リリースが1本も出なければ、更新するか戻り先を捨てるかを意識的に決めること
 - **ブランチ保護が未設定。** 2026-08-10 時点で `main` は `protected: false`（API で確認）。
   有効にする前に、`update-holidays.yml` が生成物を main へ直 push していないかを確認すること。
   required status checks と `enforce_admins` は github-actions bot の直 push も拒否する
