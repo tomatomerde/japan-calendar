@@ -135,20 +135,20 @@ dev-standards の原本とも同期した。経緯は `CHANGELOG.md` とコミ�
 
 ## 人間が決めること
 
-- **`0.1.0` を実際に出すか、いつ出すか。** 経路は用意してあり、`0.1.0-rc.1` を
-  タグで push すれば `next` に出る。本番の `0.1.0` に進めるかは、rc をレジストリから
-  入れて動かしてみてからの判断。手順は [`docs/releasing.md`](docs/releasing.md)
+- **`v0.1.0` のタグを打つ。** `package.json` と CHANGELOG は `0.1.0` に揃えてあり、
+  `NPM_TOKEN` も設定済み。rc は挟まない——**新規の名前への初回公開は `--tag` に
+  関係なく `latest` になる**ので、rc を出しても `npm install` を守れないうえ、
+  バージョンを1つ消費するだけになる（姉妹プロジェクトで実証済み。
+  [`docs/releasing.md`](docs/releasing.md) の「Release candidates」節）
 
 ## 人間が操作すること
 
 いずれもこのセッションのプロキシからは触れないため、手元の環境が必要。
 
-- **`NPM_TOKEN` が未設定。** これだけが npm 公開を止めている最後の一点。
-  `gh secret set NPM_TOKEN --repo tomatomerde/japan-calendar`。
-  対話的なワンタイムパスワードを要求しない種類のトークンが要る（Granular Access
-  Token の write、または classic の Automation）。**未公開の名前は granular の
-  パッケージ選択に出てこない**ので、初回だけは全パッケージ対象のトークンが必要。
-  詳細は [`docs/releasing.md`](docs/releasing.md)
+- **`NPM_TOKEN` は 2026-08-10 から90日で失効する。** それまでに npm trusted
+  publishing へ移行してトークンを消すのが目標。trusted publishing は
+  **パッケージが存在しないと設定できない**（npm/cli#8544 は現在も open）ので、
+  0.1.0 の公開後でないと着手できない
 - **ブランチ保護が未設定。** 2026-08-10 時点で `main` は `protected: false`（API で確認）。
   有効にする前に、`update-holidays.yml` が生成物を main へ直 push していないかを確認すること。
   required status checks と `enforce_admins` は github-actions bot の直 push も拒否する

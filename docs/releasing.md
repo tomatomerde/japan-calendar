@@ -78,39 +78,32 @@ gets only its own. A prefix match would treat `0.1.0` as matching `0.1.0-rc.1` a
 both headings match, the "stop at the next heading" rule never fires — the extracted notes run to
 the end of the file.
 
-## Releasing 0.1.0: do the release candidate first
+## Release candidates, and what they do and do not protect
 
 `npm publish` is the only step of this pipeline a dry run cannot exercise, and it cannot be undone:
 npm keeps a published version forever, and unpublishing is limited to the first 72 hours with zero
-dependents. The provenance attestation and the GitHub Release are also tag-push-only. Doing all
-three for the first time on the version that installs by default is the expensive way to find out
-something is wrong.
+dependents. The provenance attestation and the GitHub Release are also tag-push-only. That is the
+case for rehearsing with a candidate.
 
-`package.json` is at `0.1.0-rc.1` for exactly this reason. It was `0.0.0` until 2026-08-10 — a
-placeholder, never publishable.
+**But a candidate does less than it looks like it does for a brand-new name.** The sibling project
+published `jp-address-romaji@0.1.0-rc.1` with `--tag next` on 2026-08-10 and found:
 
-1. Tag `v0.1.0-rc.1`. It publishes under `next`, so `npm install japan-calendar` is unaffected.
+- **The first version ever published to a name becomes `latest` regardless of `--tag`.** The
+  registry has to point `latest` somewhere, and on a new package there is nothing else to point at.
+  `latest` cannot be deleted, so the only repair is publishing the real version. A candidate
+  therefore does **not** keep `npm install <pkg>` clean on a first release — it only buys a
+  rehearsal of the publish path.
+- **A prerelease does not satisfy a caret range.** Any dependency or peer range written `^x.y.z`
+  refuses a `x.y.z-rc.N`, which can make the candidate uninstallable. Ranges that must admit
+  prereleases have to be written `^x.y.z-0`. This package has no runtime dependencies, so it is not
+  affected today — but the Workers entry point or any future peer would be.
 
-   ```sh
-   git tag v0.1.0-rc.1 && git push origin v0.1.0-rc.1
-   ```
+`japan-calendar` therefore went straight to `0.1.0`: the token path had already been proven for
+real on the sibling project, and a candidate would have moved `latest` anyway while spending a
+version number.
 
-2. Read the run, then check from outside: the npm page shows a provenance section,
-   `npm view japan-calendar dist-tags` shows `next` and **no** `latest`, and the GitHub Release
-   body is the rc section only.
-3. In a scratch directory, install from the registry and exercise it — the first time the
-   *published* artifact runs rather than a local tarball:
-
-   ```sh
-   mkdir /tmp/try && cd /tmp/try && npm init -y
-   npm install japan-calendar@next
-   node -e "import('japan-calendar').then(m => console.log(m.isHoliday('2026-09-22')))"
-   ```
-
-4. Then bump `package.json` to `0.1.0`, turn `## [Unreleased]` into `## [0.1.0] - <date>`, commit,
-   and tag `v0.1.0`.
-
-The rc version is spent permanently, which is what rc versions are for.
+Cut a candidate when you want to rehearse a *changed* release path — not to protect a first
+release, because it cannot.
 
 ## Cutting a release
 
