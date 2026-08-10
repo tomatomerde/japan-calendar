@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/) once
 it reaches its first published release.
 
+## [0.1.0-rc.1] - 2026-08-10
+
+Release candidate for 0.1.0, published under the `next` dist-tag
+(`npm install japan-calendar@next`). The contents are the section below;
+nothing is added or removed.
+
+`npm publish` is the one step of the release that a dry run cannot exercise
+and that cannot be undone, and the provenance attestation and GitHub Release
+only happen on a real tag push. This candidate exercises all three on a
+version nobody installs by accident.
+
 ## [Unreleased]
 
 Not yet published to npm.
