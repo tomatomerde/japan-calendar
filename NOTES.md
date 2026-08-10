@@ -152,6 +152,21 @@ dev-standards の原本とも同期した。経緯は `CHANGELOG.md` とコミ�
   `main` を選ぶと `git push origin HEAD:main` を試みるが、**2026-08-10 に有効化した
   ブランチ保護がこれを拒否する**（`enforce_admins: true` なので bot も owner も例外なし）。
   定期実行は元から `branch`（`chore/update-holiday-data` へ push して PR を開く）なので影響なし
+- **`update-holidays.yml` は一度も実行されていない**（2026-08-10 に API で確認: runs = 0）。
+  月次スケジュール（`cron: '0 21 1 * *'`）で**誰も見ていないときに初回が走る**。
+  未検証の懸念が2つある:
+  - **`gh pr create` が `github.token` で動くかどうか。** GitHub の
+    「Allow GitHub Actions to create and approve pull requests」は**既定でオフ**で、
+    オフだと `GitHub Actions is not permitted to create or approve pull requests` で
+    落ちる。この経路は一度も通っていないので、オンになっているか確認していない。
+    確認: `gh api repos/tomatomerde/japan-calendar/actions/permissions/workflow`
+    の `can_approve_pull_request_reviews`。オフなら、設定を変えるか PAT を使う
+  - **`gh pr list … | grep -qx 0` が共通部分の禁止パターン**（`pipefail` 下でパイプの
+    後段に早期終了コマンドを置かない）。このステップは `shell:` 未指定で
+    `bash -e` = `pipefail` 無しなので**今は落ちない**が、誰かが `shell: bash` を
+    足した瞬間に、一致したときだけ落ちる反転バグになる
+  - なお、データに差分が無い年月は `steps.diff.outputs.changed` が false になり、
+    push も PR 作成もスキップされる。**つまり初回が緑でも、この2点を通ったとは限らない**
 
 `DEV_STANDARDS_TOKEN` に関する項目はここにあったが、**その仕組みごと廃止された**ので削除した。
 登録済みのシークレットが残っていれば消してよい（`gh secret delete DEV_STANDARDS_TOKEN --repo
