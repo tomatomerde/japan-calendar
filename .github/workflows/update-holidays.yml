@@ -123,17 +123,66 @@ jobs:
             git push --force origin HEAD:refs/heads/chore/update-holiday-data
           fi
 
+      # By this point the regenerated data is already pushed to the branch, so
+      # the update itself has succeeded. Only the pull request may be missing.
+      #
+      # It probably will be: this repository has "Allow GitHub Actions to
+      # create and approve pull requests" turned off (the GitHub default,
+      # confirmed false on 2026-08-10), and with it off GITHUB_TOKEN cannot
+      # open one --
+      #   GraphQL: GitHub Actions is not permitted to create or approve pull requests
+      # Failing here would report a successful data update as a failed run, on
+      # a monthly schedule nobody is watching. So: try anyway (flipping that
+      # setting makes this start working with no edit here), and if the refusal
+      # is that specific one, degrade to a warning carrying the link that opens
+      # the pull request by hand. Any other failure is still a failure.
       - name: Open a pull request
         if: steps.diff.outputs.changed == 'true' && (github.event_name == 'schedule' || inputs.target == 'branch')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh pr list --head chore/update-holiday-data --state open --json number --jq '. | length' | grep -qx 0; then
-            gh pr create \
-              --head chore/update-holiday-data \
-              --base main \
-              --title 'chore(data): update official holiday data' \
-              --body "Automated update from the Cabinet Office's \`syukujitsu.csv\`. See the workflow run's job summary for the parse report."
-          else
+          # Materialised, not piped. `gh pr list ... | grep -q` puts an
+          # early-exiting reader after a pipe, and `defaults.run.shell: bash`
+          # above turns on `pipefail` -- so the producer dying of SIGPIPE would
+          # fail this step precisely when the grep matched. Verified: the same
+          # pipeline exits 141 once the producer's output outgrows the 64KB
+          # pipe buffer. Today's output is one line, which is the only reason
+          # the old form was not already failing.
+          open_count=$(gh pr list --head chore/update-holiday-data --state open --json number --jq 'length')
+          if [ "$open_count" -gt 0 ]; then
             echo "An open PR for chore/update-holiday-data already exists; the push above updated it." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
+
+          if create_output=$(gh pr create \
+            --head chore/update-holiday-data \
+            --base main \
+            --title 'chore(data): update official holiday data' \
+            --body "Automated update from the Cabinet Office's \`syukujitsu.csv\`. See the workflow run's job summary for the parse report." 2>&1); then
+            echo "$create_output"
+            exit 0
+          fi
+          echo "$create_output"
+
+          case "$create_output" in
+            *"not permitted to create or approve pull requests"*)
+              url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...chore/update-holiday-data?expand=1"
+              echo "::warning::The holiday data was regenerated and pushed to chore/update-holiday-data, but GitHub Actions is not allowed to open the pull request on this repository. Nothing is lost -- open it here: $url  (To make this automatic, enable Settings -> Actions -> General -> Allow GitHub Actions to create and approve pull requests.)"
+              {
+                echo '## Pull request not opened'
+                echo
+                echo 'The regenerated data is pushed to `chore/update-holiday-data`, but this'
+                echo 'repository does not allow GitHub Actions to create pull requests, so the'
+                echo 'last step could not be automated.'
+                echo
+                echo "**[Open the pull request]($url)**"
+                echo
+                echo 'To make it automatic: Settings -> Actions -> General -> Workflow permissions'
+                echo '-> "Allow GitHub Actions to create and approve pull requests".'
+              } >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "::error::gh pr create failed for a reason other than the Actions pull-request restriction. The branch chore/update-holiday-data is pushed; the pull request is not. See the output above."
+              exit 1
+              ;;
+          esac
