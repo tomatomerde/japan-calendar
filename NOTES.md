@@ -109,8 +109,8 @@ dev-standards の原本とも同期した。経緯は `CHANGELOG.md` とコミ�
    公開時の実態と合っているか。とくに「repository を public にしていない状態で
    npm に出すと壊れるリンク」は `NOTES.md`「人間が決めること」に書いてある前提
 4. **`package.json` の公開設定。** `files` / `exports` / `engines` /
-   `publishConfig`。`npm pack --dry-run` の一覧は 2026-08-05 に目視済みだが、
-   バージョンは `0.0.0` のまま（公開判断待ち）
+   `publishConfig`。`npm pack --dry-run` の一覧は 2026-08-05 に目視済み。
+   バージョンは 2026-08-10 に `0.1.0-rc.1` にした
 
 すでに検証済みなので**再確認しなくてよい**もの（コストを使わないこと）:
 
@@ -135,30 +135,20 @@ dev-standards の原本とも同期した。経緯は `CHANGELOG.md` とコミ�
 
 ## 人間が決めること
 
-- ~~**リポジトリを public にするか**~~ **2026-08-10 に public 化した。** これで
-  パッケージページの repository / homepage / bugs リンクと NOTICE の CC BY 表示先が
-  外から辿れる状態になり、npm 公開の前提条件は満たされた。
-  副次的に npm provenance も使えるようになっている（要 `id-token: write`）
-- **npm 公開するならバージョンを決める**（現在 `0.0.0`）。
-  `0.1.0` を勧める。0.x は「API が変わりうる」の明示になり、書かないと暗黙に
-  無制限のサポートを約束したように読まれる。決めたら `package.json` と
-  `CHANGELOG.md` の両方に入れること
-- **リリース経路をどう作るか。** 上記のとおり `release.yml` が無い。`jp-address-romaji` の
-  ものは tag 駆動（`v1.2.3`）＋ `workflow_dispatch` の dry run で、公開前に
-  パッケージング・型解決・成果物の中身まで実物で通す作りになっている。同じ形にするか、
-  もっと簡素にするかは決めていない
+- **`0.1.0` を実際に出すか、いつ出すか。** 経路は用意してあり、`0.1.0-rc.1` を
+  タグで push すれば `next` に出る。本番の `0.1.0` に進めるかは、rc をレジストリから
+  入れて動かしてみてからの判断。手順は [`docs/releasing.md`](docs/releasing.md)
 
 ## 人間が操作すること
 
 いずれもこのセッションのプロキシからは触れないため、手元の環境が必要。
 
-- **npm への公開経路がまだ無い。** このリポジトリには `release.yml` が存在せず
-  （ワークフローは `ci.yml` / `update-holidays.yml` / `check-common-integrity.yml` の3本だけ）、
-  `package.json` の `version` は `0.0.0` のまま。つまり今日この時点で公開はできない。
-  必要なのは、リリース用ワークフロー、バージョンの決定、`NPM_TOKEN`、そして
-  公開前チェック（`npm pack` の中身を目で見る／`@arethetypeswrong/cli`／
-  ビルド成果物を実際に読み込む）を CI で通すこと。
-  `jp-address-romaji` の `release.yml` が同じ構成の先行例になる
+- **`NPM_TOKEN` が未設定。** これだけが npm 公開を止めている最後の一点。
+  `gh secret set NPM_TOKEN --repo tomatomerde/japan-calendar`。
+  対話的なワンタイムパスワードを要求しない種類のトークンが要る（Granular Access
+  Token の write、または classic の Automation）。**未公開の名前は granular の
+  パッケージ選択に出てこない**ので、初回だけは全パッケージ対象のトークンが必要。
+  詳細は [`docs/releasing.md`](docs/releasing.md)
 - **ブランチ保護が未設定。** 2026-08-10 時点で `main` は `protected: false`（API で確認）。
   有効にする前に、`update-holidays.yml` が生成物を main へ直 push していないかを確認すること。
   required status checks と `enforce_admins` は github-actions bot の直 push も拒否する
