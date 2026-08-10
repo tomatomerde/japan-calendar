@@ -19,6 +19,19 @@ classic **Automation** type. The granular token's package picker only lists pack
 exist, so the *first* publish of a new name needs a token scoped to **all packages**; narrow it
 afterwards.
 
+**Getting the token type wrong is not visible until the publish itself.** A classic **`Publish`**
+token is still subject to the account's 2FA, so npm rejects it from CI with:
+
+```text
+npm error code EOTP
+npm error This operation requires a one-time password from your authenticator.
+```
+
+This is exactly what happened on the sibling project's first real tag push (2026-08-10). No dry run
+can catch it, because dry runs never reach `npm publish` — the strongest argument for the
+release-candidate procedure below. `scripts/npm-publish.sh` recognises `EOTP` and names the token
+types that work.
+
 Nothing else needs setting up. The workflow's `permissions:` block grants `contents: write` for the
 GitHub Release and `id-token: write` for provenance.
 
