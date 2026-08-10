@@ -148,15 +148,22 @@ dev-standards の原本とも同期した。経緯は `CHANGELOG.md` とコミ�
   → **`NPM_TOKEN` の secret は消さない。** 現在は未使用だが、交換が失敗したときの
   戻り先になる。**このトークンは 2026-08-10 から90日で失効する**ので、それまでに
   リリースが1本も出なければ、更新するか戻り先を捨てるかを意識的に決めること
-- **ブランチ保護が未設定。** 2026-08-10 時点で `main` は `protected: false`（API で確認）。
-  有効にする前に、`update-holidays.yml` が生成物を main へ直 push していないかを確認すること。
-  required status checks と `enforce_admins` は github-actions bot の直 push も拒否する
+- **`update-holidays.yml` を手動実行するときは `target` を `branch` にする。**
+  `main` を選ぶと `git push origin HEAD:main` を試みるが、**2026-08-10 に有効化した
+  ブランチ保護がこれを拒否する**（`enforce_admins: true` なので bot も owner も例外なし）。
+  定期実行は元から `branch`（`chore/update-holiday-data` へ push して PR を開く）なので影響なし
 
 `DEV_STANDARDS_TOKEN` に関する項目はここにあったが、**その仕組みごと廃止された**ので削除した。
 登録済みのシークレットが残っていれば消してよい（`gh secret delete DEV_STANDARDS_TOKEN --repo
 tomatomerde/japan-calendar`）。詳しくは上の「共通部分は自動で配られる」を参照。
 
 GitHub の Topics は設定済み（API で確認済み、12件）。description も設定済み。
+
+ブランチ保護は 2026-08-10 に有効化済み。required checks は `typecheck` / `build` /
+`consume-on-node20` / `test (TZ=…)` 4種、`strict: false`、`enforce_admins: true`、承認0件。
+**`integrity` は required に入れていない**——`check-common-integrity.yml` は `paths:`
+フィルタ付きで `CLAUDE.md` を触らない PR では起動せず、required にするとそういう PR が
+「Expected — waiting for status」で永久にマージできなくなるため。張り直すときはここを再現する。
 
 ## レビュー状況
 
