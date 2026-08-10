@@ -56,16 +56,21 @@ PR #1〜#3 はすべて main へマージ済み。**コード上の未処理の�
 迂回していた件・`truncate` がサロゲートペアを分断しうる件）を潰し、
 dev-standards の原本とも同期した。経緯は `CHANGELOG.md` とコミットに残してある。
 
-**dev-standards 原本への同期は完了**（2026-08-07、原本 `acd9175`）。共通部分は原本の
-テンプレートとバイト一致、`check-claude-md-drift.yml` も原本の `examples/` とバイト一致。
-作業中と書かれていたブランチ `claude/sync-dev-standards-pr4-66gd0u` はリポジトリ再作成で
-存在しない。
+**共通部分は自動で配られる。手で同期しないこと。** `CLAUDE.md` の
+`<!-- BEGIN dev-standards common -->` と `<!-- END dev-standards common -->` に挟まれた範囲は
+生成物で、原本（private リポジトリ `dev-standards` の `common/CLAUDE.common.md`）が変わるたびに
+このリポジトリへ同期 PR が自動で届く。人間の仕事はその PR をマージすることだけ。
+`.github/workflows/check-common-integrity.yml` がその範囲をハッシュ照合し、手で編集されていれば
+**落ちる**（警告ではなく失敗）。シークレットもネットワークも使わないので fork からの PR でも動く。
+共通のルールを変えたいときは原本を直す。ここを直した PR は CI が赤くなり、次の同期で戻される。
 
-原本の共通部分は**3案件の公開が済むまで凍結**されている。凍結中に通すのは「放置すると CI が
-壊れる・公開後に取り返しがつかない」たぐいの修正だけで、文言改善や新しい昇格候補は
-リリース後に回す。この同期で取り込んだ drift ワークフローの差分（失効した
-`DEV_STANDARDS_TOKEN` でジョブを落とさない）は、まさにその「CI が壊れる」側の修正。
-`DEV_STANDARDS_TOKEN` は 2026-11-03 ごろ失効するので、入れていないと必ず踏む。
+これは以前の仕組みを置き換えたもので、**以下はもう存在しない**:
+
+- `check-claude-md-drift.yml`（削除済み。ワークフロー一覧に無い）
+- `DEV_STANDARDS_TOKEN`（不要。案件側はシークレットを一切使わない）。
+  以前は案件ごとに PAT を持たせて原本を読みに行っていたが、PAT は失効し、失効した1件が
+  実際に案件の CI を落とした。向きを逆にしてその依存ごと消えた。残っていれば削除してよい
+- 「3案件の公開が済むまでの凍結」（2026-08-10 に3案件とも public 化して解除済み）
 
 **原本 SHA は依頼の値を鵜呑みにせず、自分で main の HEAD を解決すること。**
 実際に2回外している: 「原本は `399e3e5`」と指示された時点で main は既に
@@ -130,31 +135,39 @@ dev-standards の原本とも同期した。経緯は `CHANGELOG.md` とコミ�
 
 ## 人間が決めること
 
-- **リポジトリを public にするか / npm に公開するか**
-  現在 private。**2026-08-05 時点では「まだ public にしない」と判断済み。**
-  private のまま npm 公開すると、パッケージページの
-  repository / homepage / bugs リンクが誰からも 404 になり、NOTICE の
-  CC BY 表示先も辿れず、利用者は Issue も出せない。公開するなら先に
-  repository を public にする必要がある。
+- ~~**リポジトリを public にするか**~~ **2026-08-10 に public 化した。** これで
+  パッケージページの repository / homepage / bugs リンクと NOTICE の CC BY 表示先が
+  外から辿れる状態になり、npm 公開の前提条件は満たされた。
+  副次的に npm provenance も使えるようになっている（要 `id-token: write`）
 - **npm 公開するならバージョンを決める**（現在 `0.0.0`）。
-  上の判断が保留なので、これも保留
+  `0.1.0` を勧める。0.x は「API が変わりうる」の明示になり、書かないと暗黙に
+  無制限のサポートを約束したように読まれる。決めたら `package.json` と
+  `CHANGELOG.md` の両方に入れること
+- **リリース経路をどう作るか。** 上記のとおり `release.yml` が無い。`jp-address-romaji` の
+  ものは tag 駆動（`v1.2.3`）＋ `workflow_dispatch` の dry run で、公開前に
+  パッケージング・型解決・成果物の中身まで実物で通す作りになっている。同じ形にするか、
+  もっと簡素にするかは決めていない
 
 ## 人間が操作すること
 
 いずれもこのセッションのプロキシからは触れないため、手元の環境が必要。
 
-- **`DEV_STANDARDS_TOKEN` は 2026-11-03 ごろ失効する（要更新）**
-  2026-08-05 に有効期限90日で作成した Fine-grained PAT を登録済みで、
-  `drift` ジョブが緑になることは確認済み。**期限が切れると、設定前と
-  まったく同じ `Input required and not supplied: token` で落ちる。**
-  「設定したのに直らない」に見える壊れ方なので、赤くなったらまず期限を疑う。
-  更新手順: <https://github.com/settings/personal-access-tokens> で当該
-  トークンを開き Regenerate token → 表示された値を Settings → Secrets and
-  variables → Actions の `DEV_STANDARDS_TOKEN` に上書き。
-  設定内容（owner=tomatomerde / repo=dev-standards / Contents: Read-only）は
-  再生成しても引き継がれるので作り直す必要はない。
+- **npm への公開経路がまだ無い。** このリポジトリには `release.yml` が存在せず
+  （ワークフローは `ci.yml` / `update-holidays.yml` / `check-common-integrity.yml` の3本だけ）、
+  `package.json` の `version` は `0.0.0` のまま。つまり今日この時点で公開はできない。
+  必要なのは、リリース用ワークフロー、バージョンの決定、`NPM_TOKEN`、そして
+  公開前チェック（`npm pack` の中身を目で見る／`@arethetypeswrong/cli`／
+  ビルド成果物を実際に読み込む）を CI で通すこと。
+  `jp-address-romaji` の `release.yml` が同じ構成の先行例になる
+- **ブランチ保護が未設定。** 2026-08-10 時点で `main` は `protected: false`（API で確認）。
+  有効にする前に、`update-holidays.yml` が生成物を main へ直 push していないかを確認すること。
+  required status checks と `enforce_admins` は github-actions bot の直 push も拒否する
 
-GitHub の Topics は設定済み（API で確認済み、12件）。
+`DEV_STANDARDS_TOKEN` に関する項目はここにあったが、**その仕組みごと廃止された**ので削除した。
+登録済みのシークレットが残っていれば消してよい（`gh secret delete DEV_STANDARDS_TOKEN --repo
+tomatomerde/japan-calendar`）。詳しくは上の「共通部分は自動で配られる」を参照。
+
+GitHub の Topics は設定済み（API で確認済み、12件）。description も設定済み。
 
 ## レビュー状況
 
