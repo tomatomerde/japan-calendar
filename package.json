@@ -1,6 +1,6 @@
 {
   "name": "japan-calendar",
-  "version": "0.0.0",
+  "version": "0.1.0-rc.1",
   "description": "Zero-dependency TypeScript library for Japanese holidays, business days, and wareki (era) date conversion",
   "keywords": [
     "japan",

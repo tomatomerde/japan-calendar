@@ -1,0 +1,331 @@
+name: Release
+
+# Publishes japan-calendar to npm.
+#
+# Two triggers:
+#   - tag push (`v1.2.3`): the real release. dry_run is forced off, the tag
+#     must match package.json's version, CHANGELOG.md must have a dated
+#     section for it, and a GitHub Release is created from that section.
+#   - workflow_dispatch: the same pipeline with dry_run defaulting to true,
+#     for exercising the release without publishing, or for re-running one
+#     that failed after publishing (npm view detects the version is already
+#     there and skips). A dispatch run has no tag, so the version and
+#     CHANGELOG guards do not apply — it publishes whatever is on disk,
+#     which is why the version and dist-tag are printed to the summary.
+#
+# `npm publish` is the only step a dry run cannot exercise; everything before
+# it runs identically either way, so a green dry run means the release would
+# have worked, not merely that the YAML parses.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run every check but skip the actual npm publish'
+        type: boolean
+        default: true
+
+# contents: write creates the GitHub Release on a tag push.
+# id-token: write lets npm mint a provenance attestation for the tarball.
+permissions:
+  contents: write
+  id-token: write
+
+# One release at a time. Never cancel one in flight: an interrupted
+# `npm publish` is worse than a queued run waiting.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+
+      - name: Determine release plan
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${{ github.ref_name }}"
+            case "$TAG" in
+              v[0-9]*) ;;
+              *)
+                echo "::error::Unrecognized tag '$TAG'. Expected v<version>, e.g. v0.1.0 — see docs/releasing.md." >&2
+                exit 1
+                ;;
+            esac
+            {
+              echo "TAG=$TAG"
+              echo "EXPECTED_VERSION=${TAG#v}"
+              echo "CHECK_VERSION=true"
+              echo "DRY_RUN=false"
+              echo "CREATE_RELEASE=true"
+            } >> "$GITHUB_ENV"
+          else
+            {
+              echo "CHECK_VERSION=false"
+              echo "DRY_RUN=${{ github.event.inputs.dry_run }}"
+              echo "CREATE_RELEASE=false"
+            } >> "$GITHUB_ENV"
+          fi
+
+      # The dist-tag is surfaced because it is the one field whose wrong
+      # value is silent and public: a prerelease landing on `latest` looks
+      # like a successful release right up until someone installs.
+      - name: Log target version
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          case "$v" in *-*) t=next ;; *) t=latest ;; esac
+          echo "DIST_TAG=$t" >> "$GITHUB_ENV"
+          echo "Will publish japan-calendar @ $v (dist-tag: $t)"
+          {
+            echo "## Release plan"
+            echo ""
+            echo "- Trigger: \`${{ github.event_name }}\`"
+            echo "- dry_run: \`$DRY_RUN\`"
+            echo "- japan-calendar: \`$v\` → dist-tag \`$t\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify tag matches package version
+        if: env.CHECK_VERSION == 'true'
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "$version" != "$EXPECTED_VERSION" ]; then
+            echo "::error::package.json is at $version but tag $TAG expects $EXPECTED_VERSION" >&2
+            exit 1
+          fi
+          echo "package.json matches $TAG."
+
+      # Match the version as a whole field, not as a line prefix. A prefix
+      # match makes "## 0.1.0" also match "## 0.1.0-rc.1 — …", and because
+      # both headings match, the "stop at the next heading" rule never fires
+      # and the extracted section runs to the end of the file.
+      #
+      # The brackets are stripped because this CHANGELOG follows Keep a
+      # Changelog, whose headings are "## [0.1.0] - 2026-08-10". Both that
+      # and a bare "## 0.1.0 — 2026-08-10" resolve to the same version.
+      - name: Check CHANGELOG has a dated section for this release
+        if: env.CHECK_VERSION == 'true'
+        shell: bash
+        run: |
+          heading="## $EXPECTED_VERSION"
+          section=$(awk -v want="$EXPECTED_VERSION" '
+            /^## / { v=$2; gsub(/^\[|\]$/, "", v); if (v == want) { found=1; print; next } else if (found) exit }
+            found { print }
+          ' CHANGELOG.md)
+
+          problem=""
+          if [ -z "$section" ]; then
+            problem="No section for $EXPECTED_VERSION found in CHANGELOG.md."
+          elif echo "$section" | grep -qi 'unreleased'; then
+            problem="CHANGELOG.md's section for $EXPECTED_VERSION still says 'unreleased'."
+          fi
+
+          if [ -n "$problem" ]; then
+            echo "::error::$problem Replace it with the release date before tagging (see docs/releasing.md)." >&2
+            exit 1
+          fi
+          echo "CHANGELOG.md has a dated section for $EXPECTED_VERSION."
+
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      # `npm publish <tarball>` runs no lifecycle scripts, so prepublishOnly
+      # never fires on the release path — these explicit steps are what make
+      # the tarball correct, not that hook.
+      #
+      # `mkdir -p` is load-bearing: `npm pack --pack-destination` does not
+      # create the directory and fails with ENOENT if it is missing.
+      - name: Pack the tarball
+        run: |
+          mkdir -p "$RUNNER_TEMP/tarballs"
+          npm pack --pack-destination "$RUNNER_TEMP/tarballs"
+
+      - name: Summarize tarball contents
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          f="$RUNNER_TEMP/tarballs/japan-calendar-$version.tgz"
+          {
+            echo "## Tarball contents"
+            echo '```'
+            tar -tzf "$f"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Materialize the listing; never pipe `tar` into `grep -q`. `grep -q`
+      # exits at its first match, closing the pipe and killing `tar` with
+      # SIGPIPE, and under `-eo pipefail` that becomes the pipeline's status
+      # — so the check fails *because* the entry was present and matched
+      # early. An absent entry fails it too, so the two outcomes are
+      # indistinguishable and the check can never pass. This bit the sibling
+      # project's release workflow for real on 2026-08-10.
+      - name: Assert tarball contents
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          f="$RUNNER_TEMP/tarballs/japan-calendar-$version.tgz"
+          listing="$RUNNER_TEMP/tarball-listing.txt"
+          tar -tzf "$f" > "$listing"
+
+          fail=false
+          # Both module formats with their own declarations, plus the CJS
+          # package.json marker — without that file Node reads dist/cjs/*.js
+          # as ESM (the root manifest says "type": "module") and every
+          # require() of this package throws.
+          for entry in \
+            package/dist/esm/index.js \
+            package/dist/esm/index.d.ts \
+            package/dist/cjs/index.js \
+            package/dist/cjs/index.d.ts \
+            package/dist/cjs/package.json \
+            package/LICENSE \
+            package/NOTICE
+          do
+            if ! grep -qx "$entry" "$listing"; then
+              echo "::error::$f is missing $entry" >&2
+              fail=true
+            fi
+          done
+          [ "$fail" = "true" ] && exit 1
+
+          # The official holiday table is the part of this package that
+          # cannot be re-derived, so assert it is actually in the tarball
+          # rather than trusting that the file exists. Counting date
+          # literals is deliberately independent of importing the module:
+          # a build that emitted an empty array would still import fine.
+          # 1067 entries as of 2026-08-10 (cross-checked against
+          # OFFICIAL_HOLIDAYS.length at runtime); the floor is 1000, which
+          # survives ordinary yearly growth and cannot be met by a stub.
+          # `|| true` keeps the message reachable: under pipefail a zero
+          # count would abort the assignment itself.
+          tar -xzOf "$f" package/dist/esm/data/official.js > "$RUNNER_TEMP/official.js"
+          holidays=$(grep -Eco "['\"][0-9]{4}-[0-9]{2}-[0-9]{2}['\"]" "$RUNNER_TEMP/official.js" || true)
+          if [ "$holidays" -lt 1000 ]; then
+            echo "::error::package/dist/esm/data/official.js has only $holidays dated entries (need >= 1000); the official holiday table is missing or truncated." >&2
+            exit 1
+          fi
+          echo "Tarball OK: both module formats, licences, and $holidays official holidays."
+
+      # Full strict profile: this package ships both ESM and CJS with
+      # separate declarations, so all four resolution modes are promises it
+      # makes and must keep.
+      - name: Check package types (arethetypeswrong)
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          npx --yes @arethetypeswrong/cli "$RUNNER_TEMP/tarballs/japan-calendar-$version.tgz"
+
+      # Exercise the exact artifact about to be published on the oldest
+      # runtime the package claims (engines ">=20"), through both module
+      # systems. Every other step runs on 22, so without this the "Node 20+"
+      # promise would ship unverified. Deliberately no `npm ci` after the
+      # downgrade: the dev toolchain needs 22, while the published package
+      # has zero dependencies and must work on 20. Mirrors ci.yml's
+      # consume-on-node20 job, against the same tarball this run publishes.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+      - name: Install the tarball on Node 20 and use it from both CJS and ESM
+        shell: bash
+        run: |
+          set -eux
+          node --version
+          mkdir -p "$RUNNER_TEMP/consumer" && cd "$RUNNER_TEMP/consumer"
+          npm init -y >/dev/null
+          npm install "$RUNNER_TEMP"/tarballs/*.tgz
+
+          cat > cjs.cjs <<'EOF'
+          const jc = require('japan-calendar');
+          const holiday = jc.isHoliday('2026-09-22');
+          if (holiday?.name !== '国民の休日') throw new Error(`CJS isHoliday: ${JSON.stringify(holiday)}`);
+          if (jc.businessDaysBetween('2026-01-01', '2026-02-01') !== 20) throw new Error('CJS businessDaysBetween');
+          if (jc.formatWareki(jc.toWareki('1989-01-08')) !== '平成元年1月8日') throw new Error('CJS formatWareki');
+          console.log('CJS ok');
+          EOF
+          node cjs.cjs
+
+          cat > esm.mjs <<'EOF'
+          import { isHoliday, businessDaysBetween, toWareki, formatWareki } from 'japan-calendar';
+          if (isHoliday('2026-09-22')?.name !== '国民の休日') throw new Error('ESM isHoliday');
+          if (businessDaysBetween('2026-01-01', '2026-02-01') !== 20) throw new Error('ESM businessDaysBetween');
+          if (formatWareki(toWareki('1989-01-08')) !== '平成元年1月8日') throw new Error('ESM formatWareki');
+          console.log('ESM ok');
+          EOF
+          node esm.mjs
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      # Written only when this run could actually publish. Writing it during
+      # a dry run, before NPM_TOKEN is known to be set, produces an .npmrc
+      # with an empty token, which can make the `npm view` below fail with
+      # 401 for a reason unrelated to what the dry run is proving.
+      - name: Configure npm auth
+        if: env.DRY_RUN != 'true'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "::error::NPM_TOKEN Actions secret is not set. Set it before running a real (non-dry-run) release — see docs/releasing.md." >&2
+            exit 1
+          fi
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"
+
+      # --tag is not optional. `npm publish` with no --tag moves `latest`
+      # even for a semver prerelease — npm does not special-case them — so
+      # publishing 0.1.0-rc.1 without it would hand every `npm install` the
+      # release candidate, repairable only by publishing a real version on
+      # top.
+      #
+      # `npm view <pkg>@<version>` exits non-zero both when the name does not
+      # exist and when that version does not; either way "not yet published".
+      - name: Publish
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view "japan-calendar@$version" version >/dev/null 2>&1; then
+            echo "japan-calendar@$version is already on npm; skipping."
+          elif [ "$DRY_RUN" = "true" ]; then
+            echo "[dry run] would publish japan-calendar@$version --tag $DIST_TAG"
+          else
+            npm publish --provenance --tag "$DIST_TAG" "$RUNNER_TEMP/tarballs/japan-calendar-$version.tgz"
+          fi
+
+      - name: Remove npm auth
+        if: always()
+        run: rm -f "$HOME/.npmrc"
+
+      - name: Extract changelog section
+        if: env.CREATE_RELEASE == 'true' && env.DRY_RUN != 'true'
+        shell: bash
+        run: |
+          awk -v want="$EXPECTED_VERSION" '
+            /^## / { v=$2; gsub(/^\[|\]$/, "", v); if (v == want) { found=1; print; next } else if (found) exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            {
+              echo "## $TAG"
+              echo ""
+              echo "See CHANGELOG.md."
+            } > release-notes.md
+          fi
+
+      - name: Create GitHub Release
+        if: env.CREATE_RELEASE == 'true' && env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$TAG" --title "$TAG" --notes-file release-notes.md
