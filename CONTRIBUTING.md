@@ -190,6 +190,45 @@ each time and any manual edit will be silently overwritten.
   the years affected are within the official data's range) rather than
   relying solely on hand-picked assertions.
 
+### What each test file covers
+
+- `test/officialMatch.test.ts` — Checks the rule engine's output against
+  **every date and name** in the Cabinet Office's official data (1955
+  through the latest year covered). A single mismatch fails the test.
+  This is the strongest guarantee that the holiday rules are correct.
+- `test/holidays.test.ts` / `test/businessDays.test.ts` — Hand-written
+  checks for cases outside the official data's coverage, law-amendment
+  boundary years, and similar edge cases. Includes 1949-1954, the six
+  years the official data can't reach, pinned against the text of the
+  1948 Public Holiday Law.
+- `test/civil.test.ts` / `test/input.test.ts` / `test/wareki.test.ts` —
+  The date foundation, timezone independence, and wareki conversion.
+  `input.test.ts` sweeps every combination of date and UTC-offset style
+  against an independently computed expectation.
+- `test/invariants.test.ts` — Properties that must hold across all of
+  1949-2099 (no duplicate dates, no substitute/national holiday on a
+  Sunday, every holiday is a non-business day), plus the immutability of
+  everything the library hands back.
+- `test/errors.test.ts` — Error `name`s, including a check that runs a
+  real minifier over the library, since minification is what breaks them.
+- `test/worker.test.ts` — The HTTP API, calling the exported `fetch`
+  handler directly. Every route's response is checked against a shared
+  contract (content-type, CORS, cache tier; error envelope and
+  `no-store`) as well as its own payload.
+- `test/fetchScript.test.ts` — CSV parsing and the sanity/regression
+  guards in the data-update script, which are otherwise only exercised
+  on a GitHub Actions runner.
+- `test/argumentValidation.test.ts` — Every non-date argument
+  (`CalendarKind`, day counts, years, wareki formats and shapes). Each
+  case here used to return a plausible wrong answer instead of failing.
+- `test/echoBounds.test.ts` — Drives real requests at every Worker path
+  that puts caller input into an error message, checking none of them
+  reflects the input at full length.
+- `test/performance.test.ts` — Asserts `businessDaysBetween` stays
+  closed-form rather than degrading to a day-by-day scan. This is the
+  only test that catches that regression, since the naive path returns
+  the same answers, just slowly.
+
 ## Pull requests
 
 Please run `npm run typecheck` and `npm test` before opening a PR. CI

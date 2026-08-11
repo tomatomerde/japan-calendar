@@ -18,8 +18,11 @@ on:
           - branch # push to the chore/update-holiday-data branch (open a PR separately)
           - main   # push directly to main (for initial bootstrapping)
   schedule:
-    # Monthly, on the 1st at 06:00 JST. The Calendrical Data is published
-    # in early February each year, so monthly is frequent enough.
+    # Monthly: the 1st at 21:00 UTC, which is the 2nd at 06:00 JST. Cron is
+    # evaluated in UTC and the +09:00 conversion crosses midnight, so the
+    # day-of-month field names the day *before* the intended JST day. The
+    # Calendrical Data is published in early February each year, so monthly
+    # is frequent enough either way.
     - cron: '0 21 1 * *'
 
 permissions:
@@ -141,6 +144,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...chore/update-holiday-data?expand=1"
+
           # Materialised, not piped. `gh pr list ... | grep -q` puts an
           # early-exiting reader after a pipe, and `defaults.run.shell: bash`
           # above turns on `pipefail` -- so the producer dying of SIGPIPE would
@@ -148,7 +153,22 @@ jobs:
           # pipeline exits 141 once the producer's output outgrows the 64KB
           # pipe buffer. Today's output is one line, which is the only reason
           # the old form was not already failing.
-          open_count=$(gh pr list --head chore/update-holiday-data --state open --json number --jq 'length')
+          #
+          # gh can also fail here for reasons that have nothing to do with this
+          # repository -- an API rate limit is the one that has actually
+          # happened, three times, on the repository that distributes this
+          # workflow's sibling. Under `set -e` that would abort with a log that
+          # never mentions the branch now sitting there with the regenerated
+          # data on it, which reads as "the update did not run". It did. Name
+          # the branch and carry the link on this path too, not just on the
+          # permissions one below.
+          if ! open_count=$(gh pr list --head chore/update-holiday-data --state open --json number --jq 'length' 2>&1); then
+            # $open_count holds gh's error text on this path, not a count.
+            echo "$open_count"
+            echo "::error::The holiday data was regenerated and pushed to chore/update-holiday-data, but checking for an existing pull request failed (see the gh output above; an API rate limit clears on its own). Nothing is lost -- open the pull request here: $url"
+            exit 1
+          fi
+
           if [ "$open_count" -gt 0 ]; then
             echo "An open PR for chore/update-holiday-data already exists; the push above updated it." >> "$GITHUB_STEP_SUMMARY"
             exit 0
@@ -166,7 +186,6 @@ jobs:
 
           case "$create_output" in
             *"not permitted to create or approve pull requests"*)
-              url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...chore/update-holiday-data?expand=1"
               echo "::warning::The holiday data was regenerated and pushed to chore/update-holiday-data, but GitHub Actions is not allowed to open the pull request on this repository. Nothing is lost -- open it here: $url  (To make this automatic, enable Settings -> Actions -> General -> Allow GitHub Actions to create and approve pull requests.)"
               {
                 echo '## Pull request not opened'
@@ -182,7 +201,7 @@ jobs:
               } >> "$GITHUB_STEP_SUMMARY"
               ;;
             *)
-              echo "::error::gh pr create failed for a reason other than the Actions pull-request restriction. The branch chore/update-holiday-data is pushed; the pull request is not. See the output above."
+              echo "::error::gh pr create failed for a reason other than the Actions pull-request restriction. The branch chore/update-holiday-data is pushed, so the data update itself succeeded; only the pull request is missing. See the output above, and open it by hand here: $url"
               exit 1
               ;;
           esac

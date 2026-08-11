@@ -7,8 +7,9 @@
 （積むと再開時に「で、何をすればいいのか」が埋もれる）。
 恒久的な設計判断は `CONTRIBUTING.md`。
 
-最終更新: 2026-08-10（`japan-calendar@0.1.0` を npm へ公開し、ワークフローを
-trusted publishing に切り替えた。済んだ項目を落とし、残った1点を書き直した）
+最終更新: 2026-08-11（公開後レビュー。`wrangler dev` 実機での Worker 検証を
+消し込み、README の「未公開」表記の誤りを修正し、リリース／データ更新
+ワークフローの穴を2件塞いだ）
 
 **npm 公開済み**: `japan-calendar@0.1.0`（2026-08-10、provenance attestation 付き）。
 
@@ -36,11 +37,10 @@ force push では消せない。GitHub は `refs/pull/*/head` 経由で旧コミ
 変わっていない。
 
 副作用として、**この文書と履歴に出てくる `#N` は旧リポジトリの PR 番号で、現在の
-リポジトリの PR 番号とは対応しない**。現在のリポジトリの PR は0件から始まる。GitHub は
-コミットメッセージ中の `#N` を自動リンクするので、いま押せば 404 になり、**今後この
-リポジトリで PR を開くと、過去の `#1` が無関係な PR を指すようになる**。404 は誤りだと
-読み手に分かるが、こちらは静かに嘘になる。経緯を追うときは番号ではなく
-`git log` の件名で辿ること。
+リポジトリの PR 番号とは対応しない**。GitHub はコミットメッセージ中の `#N` を自動リンク
+するので、いま押せば 404 になり、**今後このリポジトリで PR を開くと、過去の `#1` が
+無関係な PR を指すようになる**。404 は誤りだと読み手に分かるが、こちらは静かに嘘になる。
+経緯を追うときは番号ではなく `git log` の件名で辿ること。
 
 `NOTES.md` / `CHANGELOG.md` 内の `#N` は Markdown では自動リンクされないので、探しに
 行った読み手が空振りするだけ。害があるのはコミットメッセージ側。
@@ -48,138 +48,77 @@ force push では消せない。GitHub は `refs/pull/*/head` 経由で旧コミ
 なお本文中の `b2996af` `399e3e5` `03e7e41` `758d2d8` は **dev-standards 側の SHA** で、
 このリポジトリでは解決しない。これは正常。
 
-## 現在地
+## 共通部分は自動で配られる（手で同期しないこと）
 
-npm 公開の直前。ライブラリ・営業日API・和暦・Cloudflare Workers・CI・
-月次データ更新ワークフローまで実装済み。テストは 325 件（14ファイル）。
-
-PR #1〜#3 はすべて main へマージ済み。**コード上の未処理の指摘は現在ない。**
-直近の PR #3 で `describeValue` の残件2件（bigint 分岐が 200 文字上限を
-迂回していた件・`truncate` がサロゲートペアを分断しうる件）を潰し、
-dev-standards の原本とも同期した。経緯は `CHANGELOG.md` とコミットに残してある。
-
-**共通部分は自動で配られる。手で同期しないこと。** `CLAUDE.md` の
-`<!-- BEGIN dev-standards common -->` と `<!-- END dev-standards common -->` に挟まれた範囲は
-生成物で、原本（private リポジトリ `dev-standards` の `common/CLAUDE.common.md`）が変わるたびに
-このリポジトリへ同期 PR が自動で届く。人間の仕事はその PR をマージすることだけ。
-`.github/workflows/check-common-integrity.yml` がその範囲をハッシュ照合し、手で編集されていれば
-**落ちる**（警告ではなく失敗）。シークレットもネットワークも使わないので fork からの PR でも動く。
-共通のルールを変えたいときは原本を直す。ここを直した PR は CI が赤くなり、次の同期で戻される。
-
-これは以前の仕組みを置き換えたもので、**以下はもう存在しない**:
-
-- `check-claude-md-drift.yml`（削除済み。ワークフロー一覧に無い）
-- `DEV_STANDARDS_TOKEN`（不要。案件側はシークレットを一切使わない）。
-  以前は案件ごとに PAT を持たせて原本を読みに行っていたが、PAT は失効し、失効した1件が
-  実際に案件の CI を落とした。向きを逆にしてその依存ごと消えた。残っていれば削除してよい
-- 「3案件の公開が済むまでの凍結」（2026-08-10 に3案件とも public 化して解除済み）
+`CLAUDE.md` の `<!-- BEGIN dev-standards common -->` と `<!-- END dev-standards common -->` に
+挟まれた範囲は生成物で、原本（private リポジトリ `dev-standards` の
+`common/CLAUDE.common.md`）が変わるたびにこのリポジトリへ同期 PR が自動で届く。人間の仕事は
+その PR をマージすることだけ。`.github/workflows/check-common-integrity.yml` がその範囲を
+ハッシュ照合し、手で編集されていれば**落ちる**（警告ではなく失敗）。シークレットもネット
+ワークも使わないので fork からの PR でも動く。共通のルールを変えたいときは原本を直す。
 
 **原本 SHA は依頼の値を鵜呑みにせず、自分で main の HEAD を解決すること。**
-実際に2回外している: 「原本は `399e3e5`」と指示された時点で main は既に
-`03e7e41` まで進んでおり（内容は同一の空マージ）、次に同期を頼まれた時点でも
-`758d2d8` まで進んでいた。原本参照コメントを古い SHA に「更新」しかけている。
+過去に2回外している（指示された SHA より原本が進んでいた）。
 
-### 次のセッションが最初にやること
+## いま open なこと
 
-**このセッションは公開前レビュー**（実装とは別セッションで行う運用）。
-下の「公開前レビューの依頼内容」を読むこと。
+### 1. trusted publishing 経由のリリースがまだ1本も出ていない
 
-その前に:
+移行自体は済んでいてワークフローにトークンは無いが、**通ることを確かめる手段が次の
+リリースしかない**。dry run は `npm publish` に到達せず、`v0.1.0` を押し直しても
+「既にレジストリにある」でスキップされる。
 
-1. `npm ci && npm run typecheck && npm test` が通ることを確認（環境の健全性確認）
-2. 下記「人間が決めること」がまだ決まっていないなら、まずそれを聞く。
-   公開判断が決まらないと、バージョン設定も公開作業も進められない
-3. コードを触るなら `CONTRIBUTING.md` の「Core invariants」を先に読む。
-   11項目あり、いずれも一度壊して直した実績があるもの
-4. 作業するなら main から新しいブランチを切る。マージ済みブランチは再利用しない
+→ **`NPM_TOKEN` の secret は消さない。** 現在は未使用だが、交換が失敗したときの戻り先。
+**このトークンは 2026-08-10 から90日で失効する**ので、それまでにリリースが1本も出なければ、
+更新するか戻り先を捨てるかを意識的に決めること。
 
-### 公開前レビューの依頼内容
+2026-08-11 に、publish 直前の npm 版を再確認するステップを足した
+（`scripts/assert-npm-version.sh`）。Node 20 での消費者チェックのあとに `setup-node` を
+もう一度走らせる構成なので、そこで同梱 npm（10.9.x = OIDC の下限 11.5.1 未満）に
+戻りうる、という穴を塞ぐもの。スクリプト自体は 11.5.0 で落ち 11.5.1 で通ることを
+スタブで確認済みだが、**ランナー上で実際に下がるかどうかは次のリリースまで未検証**。
 
-**「問題なし」で終わらせない。見ていない領域があるなら「ここは見ていない」と言う。**
-指摘は重要度順に、実際に動かした結果を根拠として添える。
+### 2. `update-holidays.yml` は本物の実行が0回
 
-優先して見てほしい順:
+月次スケジュール（`cron: '0 21 1 * *'` ＝ **JST では毎月2日 06:00**。cron は UTC 評価で
++09:00 が日付を跨ぐ）で誰も見ていないときに初回が走る。次の発火は 2026-09-01 21:00 UTC。
 
-1. **`src/` 全体を、公開パッケージとして初めて外から触られる前提で見る。**
-   これまでの指摘（`[object Object]`、無制限反射、型だけ見るシェイプガード、
-   bigint の上限迂回）は**すべて「不正な入力に対する振る舞い」で見つかっている**。
-   同じ系統がまだ残っていないか
-2. **`worker/index.ts`。** 敵対的入力11種は固定済みだが、
-   **`wrangler dev` の実ランタイム上では一度も動かしていない**。
-   テストは `fetch` ハンドラの直呼び
-3. **README / README.ja / NOTICE。** 出典・CC BY 表示・サポート範囲・免責が
-   公開時の実態と合っているか。とくに「repository を public にしていない状態で
-   npm に出すと壊れるリンク」は `NOTES.md`「人間が決めること」に書いてある前提
-4. **`package.json` の公開設定。** `files` / `exports` / `engines` /
-   `publishConfig`。`npm pack --dry-run` の一覧は 2026-08-05 に目視済み。
-   `0.1.0` として公開済み（rc は挟まなかった——**新規の名前への初回公開は `--tag` に
-   関係なく `latest` になる**ため。[`docs/releasing.md`](docs/releasing.md) の
-   「Release candidates」節）
+- **手動実行するときは `target` を `branch` にする。** `main` を選ぶと
+  `git push origin HEAD:main` を試みるが、ブランチ保護がこれを拒否する
+  （`enforce_admins: true` なので bot も owner も例外なし）。定期実行は元から `branch`
+- **データに差分が無い年月は `steps.diff.outputs.changed` が false になり、push も PR 作成も
+  スキップされる。初回が緑でも、この経路を通った証拠にはならない**
+- `gh pr create` は `github.token` では通らない（`can_approve_pull_request_reviews` が
+  false）。**PR 作成に失敗してもデータはブランチに push 済み**なので、この拒否に限っては
+  ワークフローを落とさず、PR を開くリンク付きの warning に degrade する
+- 2026-08-11 に `gh pr list` の失敗経路にも同じ案内を足した。以前は rate limit 等で
+  素の赤になり、「push 済みのブランチがある」ことがログのどこにも出なかった
+  （同じ形の事故が dev-standards 側で3回起きている）。ワークフローから `run:` ブロックを
+  抜き出し、スタブ `gh` で5経路（成功／既存PR／rate limit／権限拒否／その他失敗）を
+  実行して確認済み
 
-すでに検証済みなので**再確認しなくてよい**もの（コストを使わないこと）:
+### 3. 人間の操作待ち
 
-- 全14実装ファイルの変異テスト（下の「レビュー状況」表）
-- `@arethetypeswrong/cli` 4項目 green
-- Node 20 実機（20.19.0）での tarball install → `require()` / `import`
-- 4TZ でのテスト通過
-- `actions/checkout@v7` の資格情報で後続ステップの `git push` が通ること
+- **マージ済みブランチの掃除**（セッションの資格情報では `git push --delete` が 403）。
+  再発防止に `gh repo edit tomatomerde/japan-calendar --delete-branch-on-merge` を先に
+  実行しておくとよい（2026-08-10 時点で false）
+- **`can_approve_pull_request_reviews` を有効にするかの判断。** オンにすれば
+  `update-holidays.yml` の PR が自動で立つ。オフのままでも warning に degrade するので
+  急ぎではない
 
-### まだ見ていない領域
+## まだ検証していない領域
 
-- **祝日ルールそのものの正しさ**。公式データ全1067件との突合に依拠したままで、
-  再検証していない
-- **`wrangler dev` での実挙動**。Worker のテストは `fetch` ハンドラの直呼びで、
-  実際のランタイム上では動かしていない
-- **ブラウザ／バンドラでの取り込み**。`@arethetypeswrong/cli` による
-  静的な解決チェックのみ
-- ~~Node 20 での実インストール検証~~ → **2026-08-05 に実施済み**。
-  nodejs.org から Node 20.19.0 を取得し、`ci.yml` の `consume-on-node20`
-  ジョブの `run:` ブロックを `yq` で抽出してそのまま実行。
-  `npm install <tarball>` → `require()` / `import` 双方が通った
-
-## 人間が操作すること
-
-いずれもこのセッションのプロキシからは触れないため、手元の環境が必要。
-
-- **trusted publishing 経由のリリースがまだ1本も出ていない。** 移行自体は済んでいて
-  ワークフローにトークンは無いが、**通ることを確かめる手段が次のリリースしかない**。
-  dry run は `npm publish` に到達せず、`v0.1.0` を押し直しても
-  「既にレジストリにある」でスキップされる（2026-08-10 の dry run の出力がそれ）。
-  → **`NPM_TOKEN` の secret は消さない。** 現在は未使用だが、交換が失敗したときの
-  戻り先になる。**このトークンは 2026-08-10 から90日で失効する**ので、それまでに
-  リリースが1本も出なければ、更新するか戻り先を捨てるかを意識的に決めること
-- **`update-holidays.yml` を手動実行するときは `target` を `branch` にする。**
-  `main` を選ぶと `git push origin HEAD:main` を試みるが、**2026-08-10 に有効化した
-  ブランチ保護がこれを拒否する**（`enforce_admins: true` なので bot も owner も例外なし）。
-  定期実行は元から `branch`（`chore/update-holiday-data` へ push して PR を開く）なので影響なし
-- **`update-holidays.yml` は一度も実行されていない**（2026-08-10 に API で確認: runs = 0）。
-  月次スケジュール（`cron: '0 21 1 * *'`）で**誰も見ていないときに初回が走る**。
-  見つかった2点は同日に修正済み:
-  - **`gh pr create` は `github.token` では通らない。** このリポジトリの
-    `can_approve_pull_request_reviews` は **false**（実測）。GitHub の
-    「Allow GitHub Actions to create and approve pull requests」が既定でオフのため。
-    → **PR 作成に失敗しても、データは既にブランチに push 済み**なので、この拒否に
-    限ってはワークフローを落とさず、PR を開くリンク付きの warning に degrade する。
-    設定をオンにすれば**ファイルを触らずに**自動作成へ戻る
-  - **`gh pr list … | grep -qx 0` は共通部分の禁止パターンだった。** しかも
-    `defaults: run: shell: bash` があるので **`pipefail` は効いていた**
-    （「`shell:` 未指定だから安全」というのは誤り。訂正する）。出力が1行と小さいため
-    発火していなかっただけで、同じパイプは前段の出力が 64KB を超えると `exit 141` に
-    なることを確認済み。materialize する形に直した
-  - なお、データに差分が無い年月は `steps.diff.outputs.changed` が false になり、
-    push も PR 作成もスキップされる。**初回が緑でも、この経路を通った証拠にはならない**
-
-`DEV_STANDARDS_TOKEN` に関する項目はここにあったが、**その仕組みごと廃止された**ので削除した。
-登録済みのシークレットが残っていれば消してよい（`gh secret delete DEV_STANDARDS_TOKEN --repo
-tomatomerde/japan-calendar`）。詳しくは上の「共通部分は自動で配られる」を参照。
-
-GitHub の Topics は設定済み（API で確認済み、12件）。description も設定済み。
-
-ブランチ保護は 2026-08-10 に有効化済み。required checks は `typecheck` / `build` /
-`consume-on-node20` / `test (TZ=…)` 4種、`strict: false`、`enforce_admins: true`、承認0件。
-**`integrity` は required に入れていない**——`check-common-integrity.yml` は `paths:`
-フィルタ付きで `CLAUDE.md` を触らない PR では起動せず、required にするとそういう PR が
-「Expected — waiting for status」で永久にマージできなくなるため。張り直すときはここを再現する。
+- **祝日ルールそのものの正しさ**。公式データ全1067件との突合に依拠したままで、再検証して
+  いない
+- **ブラウザ／バンドラでの取り込み**。`@arethetypeswrong/cli` による静的な解決チェックのみ
+- **`update-holidays.yml` の実運用**（上記2）
+- **OIDC publish の実通過**（上記1）
+- ~~`wrangler dev` での実挙動~~ → **2026-08-11 に実施済み**。workerd 実機で起動し、
+  正常系2件・敵対的入力6種（`2026.5` / `9999` / 壊れた URL エスケープ `%zz` と `%E0%A4` /
+  欠落パラメータ / `2026-13-01` / 型違い）がすべて 4xx（500 は0件）、HEAD が GET と同じ
+  200、POST が 405、未知ルートが 404、キャッシュヘッダが確定年 `max-age=2592000, immutable`
+  ／予報年 `max-age=3600` であることを確認した
+- ~~Node 20 での実インストール検証~~ → 2026-08-05 に実施済み
 
 ## レビュー状況
 
@@ -196,20 +135,24 @@ GitHub の Topics は設定済み（API で確認済み、12件）。description
 | `src/index.ts` | 公開API 35件を厳密に固定（増減とも検出） |
 | `src/rules/` | equinox/observed/holidayLaw/exceptions すべて変異検出。1949–54年は法律を根拠に固定 |
 | `scripts/` | fetch/report とも変異検出。退行ガードあり |
-| `worker/index.ts` | 全ルートを共通契約＋個別ペイロードで検証。敵対的入力11種も固定 |
+| `worker/index.ts` | 全ルートを共通契約＋個別ペイロードで検証。敵対的入力11種も固定。**2026-08-11 に workerd 実機でも確認** |
 | パッケージング | `@arethetypeswrong/cli` 4項目green。Node 20 実機（20.19.0）でtarballを install し `require()`/`import` 両方通過 |
-| CI / ワークフロー | pipefail 修正済み。Node 20 消費者ジョブあり。**`actions/checkout@v7` の資格情報で後続ステップの `git push` が通ることを Actions 上で実証済み**（新規ブランチ作成・既存ブランチへの `--force` 再pushとも success）。`update-holidays.yml` の Commit and push はこの経路に乗っている |
+| CI / ワークフロー | pipefail 修正済み。Node 20 消費者ジョブあり。`actions/checkout@v7` の資格情報で後続ステップの `git push` が通ることを Actions 上で実証済み |
 
 ## 運用メモ
 
-- レビューは実装とは別モデルで行っている（実装 Sonnet / レビュー Opus）
+- **ブランチ保護の設定内容（張り直すときはここを再現する）**: 2026-08-10 に有効化。
+  required checks は `typecheck` / `build` / `consume-on-node20` / `test (TZ=…)` の4種、
+  `strict: false`、`enforce_admins: true`、承認0件。**`integrity` は required に入れない**——
+  `check-common-integrity.yml` は `paths:` フィルタ付きで `CLAUDE.md` を触らない PR では
+  起動せず、required にするとそういう PR が「Expected — waiting for status」で永久に
+  マージできなくなるため
+- レビューは実装とは別セッション・別モデルで行う
 - **`mcp__github__actions_list` の `list_workflow_runs` は1回で300KB超を返す**。
-  CI確認に多用するとトークンを大きく消費する。run_id が分かっているなら
-  `list_workflow_jobs` や `actions_get` を使う
-- 内閣府 `cao.go.jp` は開発環境の egress ポリシーで遮断されている。
-  CSV取得は GitHub Actions 上でのみ可能
-- 開発には Node 22+ が必要（型ストリッピングと wrangler のため）。
-  公開パッケージ自体は Node 20 で動く（CIで検証済み）
-- `test/performance.test.ts` は壁時計依存。単独では安定（15/15）だが、
-  `npm install` と並走させると落ちうる。データ更新ワークフローから
-  除外してあるのはこのため
+  run_id が分かっているなら `list_workflow_jobs` や `actions_get` を使う
+- 内閣府 `cao.go.jp` は開発環境の egress ポリシーで遮断されている。CSV取得は
+  GitHub Actions 上でのみ可能
+- **開発には Node 22+ が必要**（型ストリッピングと wrangler のため）。公開パッケージ自体は
+  Node 20 で動く（CIで検証済み）。README にもこの区別を明記した
+- `test/performance.test.ts` は壁時計依存。単独では安定（15/15）だが、`npm install` と
+  並走させると落ちうる。データ更新ワークフローから除外してあるのはこのため
