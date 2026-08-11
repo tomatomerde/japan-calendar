@@ -1081,7 +1081,7 @@ export const OFFICIAL_HOLIDAYS: readonly OfficialHolidayRow[] = Object.freeze([
 ]);
 
 export const OFFICIAL_META: OfficialMeta = Object.freeze({
-  fetchedAt: '2026-08-04T05:24:20.197Z',
+  fetchedAt: '2026-08-11T13:58:14.513Z',
   sourceUrl: 'https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv',
   sha256: 'cec37a743c96995cdb9cb52b685c9003634682a9b0e1a640a6b9b96881fe964a',
   firstYear: 1955,
