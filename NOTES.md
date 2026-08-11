@@ -141,6 +141,12 @@ force push では消せない。GitHub は `refs/pull/*/head` 経由で旧コミ
 
 ## 運用メモ
 
+- **ブランチ保護の設定内容（張り直すときはここを再現する）**: 2026-08-10 に有効化。
+  required checks は `typecheck` / `build` / `consume-on-node20` / `test (TZ=…)` の4種、
+  `strict: false`、`enforce_admins: true`、承認0件。**`integrity` は required に入れない**——
+  `check-common-integrity.yml` は `paths:` フィルタ付きで `CLAUDE.md` を触らない PR では
+  起動せず、required にするとそういう PR が「Expected — waiting for status」で永久に
+  マージできなくなるため
 - レビューは実装とは別セッション・別モデルで行う
 - **`mcp__github__actions_list` の `list_workflow_runs` は1回で300KB超を返す**。
   run_id が分かっているなら `list_workflow_jobs` や `actions_get` を使う
