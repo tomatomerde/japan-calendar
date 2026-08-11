@@ -10,6 +10,15 @@ it reaches its first published release.
 
 ### Fixed
 
+- `scripts/fetch-syukujitsu.ts` stamped the current time into the generated
+  module on every run, so the regenerated file differed even when the CSV had
+  not changed a byte — the workflow's "did anything change" check could never
+  say no, and the monthly schedule would have opened a timestamp-only pull
+  request every month, forever. Found by the first real run of
+  `update-holidays.yml` (2026-08-11), whose entire pushed diff was that one
+  line. `fetchedAt` now means "when the data last changed": it is carried
+  forward unchanged while the CSV's sha256 matches the committed one.
+
 - The README (both languages) told readers the package was unpublished —
   "nothing has been published to npm yet — the install command above will
   not resolve" — directly under the install command, while `0.1.0` had been

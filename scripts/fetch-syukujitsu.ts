@@ -127,6 +127,24 @@ export function assertSane(rows: readonly OfficialHolidayRow[]): void {
   assertNoRegression(rows);
 }
 
+/**
+ * The timestamp to stamp into the generated module: the previous one when the
+ * CSV bytes are unchanged, the current time only when they differ.
+ *
+ * Stamping every run made the generated file differ on every fetch even when
+ * the CSV had not changed a byte, so the workflow's "did anything change"
+ * check could never say no — the first real run of update-holidays.yml
+ * (2026-08-11) pushed a branch whose entire diff was this one timestamp line,
+ * and on the monthly schedule that would have meant a noise PR every month.
+ * `fetchedAt` therefore means "when the data last changed", not "when the
+ * fetch last ran"; the run itself is already logged by Actions.
+ */
+export function resolveFetchedAt(newSha256: string, now: string): string {
+  // Nothing to preserve on the very first generation.
+  if (OFFICIAL_META.fetchedAt === null) return now;
+  return newSha256 === OFFICIAL_META.sha256 ? OFFICIAL_META.fetchedAt : now;
+}
+
 function renderModule(rows: readonly OfficialHolidayRow[], sha256: string, fetchedAt: string): string {
   const years = new Set(rows.map(([date]) => Number(date.slice(0, 4))));
   const firstYear = Math.min(...years);
@@ -182,7 +200,7 @@ async function main(): Promise<void> {
   const rows = parseCsv(text);
   assertSane(rows);
 
-  const fetchedAt = new Date().toISOString();
+  const fetchedAt = resolveFetchedAt(sha256, new Date().toISOString());
   writeFileSync(OUTPUT_PATH, renderModule(rows, sha256, fetchedAt), 'utf8');
   console.log(`Wrote: ${OUTPUT_PATH}`);
   console.log();

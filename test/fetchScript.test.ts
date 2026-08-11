@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { assertSane, parseCsv } from '../scripts/fetch-syukujitsu.ts';
+import { assertSane, parseCsv, resolveFetchedAt } from '../scripts/fetch-syukujitsu.ts';
 import { computeEquinoxConfirmedThrough, findAnomalies } from '../scripts/report.ts';
 import { OFFICIAL_HOLIDAYS, OFFICIAL_META } from '../src/data/official.ts';
 import type { OfficialHolidayRow } from '../src/data/official-types.ts';
@@ -179,6 +179,24 @@ describe('findAnomalies — 取得データの健全性チェック', () => {
     );
     expect(findAnomalies([['2100-02-29', 'ありえない日（100年ルール）']]).map((a) => a.kind)).toContain(
       'invalid-date',
+    );
+  });
+});
+
+describe('resolveFetchedAt', () => {
+  it('CSVが変わっていなければ既存のタイムスタンプを据え置く', () => {
+    // The stamp means "when the data last changed". Re-stamping every run
+    // made the generated file differ on every fetch, so the workflow's
+    // changed-check could never say no and a timestamp-only PR would have
+    // gone out every month.
+    expect(resolveFetchedAt(OFFICIAL_META.sha256 as string, '2099-01-01T00:00:00.000Z')).toBe(
+      OFFICIAL_META.fetchedAt,
+    );
+  });
+
+  it('CSVが変わったときだけ現在時刻を採用する', () => {
+    expect(resolveFetchedAt('0'.repeat(64), '2099-01-01T00:00:00.000Z')).toBe(
+      '2099-01-01T00:00:00.000Z',
     );
   });
 });
