@@ -78,10 +78,20 @@ force push では消せない。GitHub は `refs/pull/*/head` 経由で旧コミ
 戻りうる、という穴を塞ぐもの。スクリプト自体は 11.5.0 で落ち 11.5.1 で通ることを
 スタブで確認済みだが、**ランナー上で実際に下がるかどうかは次のリリースまで未検証**。
 
-### 2. `update-holidays.yml` は本物の実行が0回
+### 2. `update-holidays.yml` の残り検証
 
-月次スケジュール（`cron: '0 21 1 * *'` ＝ **JST では毎月2日 06:00**。cron は UTC 評価で
-+09:00 が日付を跨ぐ）で誰も見ていないときに初回が走る。次の発火は 2026-09-01 21:00 UTC。
+本物の実行は 2026-08-11 に `workflow_dispatch`（target=branch）で1回通した。
+CSV取得・sanity check・`test:data`・`chore/update-holiday-data` への push・
+PR 作成の degrade（権限拒否 → warning で緑終了）まで、**差分ありの全経路が本番で成功**。
+
+その実行が**バグを1つ露出させた**: 生成物に `fetchedAt`（実行時刻）を毎回焼き込むため、
+CSV が1バイトも変わっていなくても必ず「差分あり」になり、タイムスタンプ1行だけの
+ブランチ更新と月次ノイズ PR が永久に続く構造だった（dev-standards の provenance
+スタンプ問題と同型）。`resolveFetchedAt` で「内容が変わったときだけ更新」に修正済み。
+**`changed=false` 経路はこの修正が入って初めて通れるようになる**ので、次の月次実行
+（2026-09-01 21:00 UTC ＝ JST 9/2 06:00）で「No change in official data.」で終わることを
+確認するのが残りの検証。なお `chore/update-holiday-data` に残っているタイムスタンプ
+1行だけのコミットはマージ不要（次回実行が force push で上書きする）。
 
 - **手動実行するときは `target` を `branch` にする。** `main` を選ぶと
   `git push origin HEAD:main` を試みるが、ブランチ保護がこれを拒否する
