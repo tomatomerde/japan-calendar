@@ -1,14 +1,18 @@
 # japan-calendar
 
+[![npm](https://img.shields.io/npm/v/japan-calendar.svg)](https://www.npmjs.com/package/japan-calendar)
 [![CI](https://github.com/tomatomerde/japan-calendar/actions/workflows/ci.yml/badge.svg)](https://github.com/tomatomerde/japan-calendar/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Bundled data: CC BY 4.0](https://img.shields.io/badge/bundled%20data-CC%20BY%204.0-blue.svg)](./NOTICE)
 [![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-brightgreen.svg)](#インストール)
 [![dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen.svg)](./package.json)
 
 [English](./README.md) | **日本語**
 
 日本の祝日・営業日・和暦を扱う、依存ゼロの TypeScript ライブラリ。
-npm パッケージと Cloudflare Workers 上の HTTP API の2形態で提供する。
+npm パッケージとして配布し、加えて Cloudflare Workers 上の HTTP API として
+**自分でデプロイして**使うこともできる（こちらでホストしているエンドポイントは
+無い。[Cloudflare Workers 版](#cloudflare-workers-版)を参照）。
 
 多くの無料の祝日ライブラリは「祝日かどうか」しか判定しないが、このライブラリは
 **営業日計算（`isBusinessDay` / `addBusinessDays` / `businessDaysBetween`）を
@@ -41,11 +45,28 @@ addBusinessDays('2026-05-01', 3);
 Node.js 20 以降。依存ゼロ、実行時のデータ取得なし。ESM バンドルはブラウザと
 Cloudflare Workers でもそのまま動く。
 
-> **状態: 公開前。** 祝日判定・営業日計算・和暦変換・Cloudflare Workers 版
-> HTTP API は実装とテストが済んでいるが、**npm にはまだ公開していない**——
-> 上のインストールコマンドは初回リリースまで解決しない。バージョンは `0.x` で、
-> API は変わりうる。個人プロジェクトであり、対応はベストエフォートで行う。
-> 業務で依存する前に下の「サポート範囲と免責」を読むこと。
+> **維持方針。** バージョンは `0.x` なので、マイナーリリース間で API が
+> 変わりうる。変更点は [CHANGELOG.md](./CHANGELOG.md) に記録している。
+> 個人プロジェクトであり、対応はベストエフォートで行う。業務で依存する前に
+> 次の節を読むこと。
+
+## サポート範囲と免責
+
+このライブラリが扱う範囲と、意図的に扱わない範囲:
+
+- **対応年。** 祝日判定・営業日計算は 1949–2099年。範囲外は
+  `OutOfRangeError`。和暦変換は明治6年1月1日（1873-01-01）以降。
+- **`equinoxConfirmedThrough` を超える春分・秋分は予報であって事実ではない。**
+  `confirmed: false` を付けて返す。確定した日付として扱わず、フラグを見ること。
+- **1949–1954年は独立した検証ができない。** この6年は公式データの範囲外で、
+  近似式の外挿に依拠している。1948年の祝日法の条文を根拠にテストで固定して
+  あるが、これは得られる中で最善のチェックであって、公表値との突き合わせでは
+  ない。
+- **カレンダーは `'national'` と `'bank'` の2種のみ。** 企業・業界独自の
+  休業日は対象外。
+- **無保証。** ソフトウェアは MIT ライセンスの "AS IS" 提供。祝日・営業日の
+  判定結果が法的・金融的・規制上の判断に適することは保証しない。正確性が
+  重要な用途では内閣府の公表データで確認すること。
 
 ## 設計方針
 
@@ -74,35 +95,12 @@ equinoxConfirmedThrough = 「春分の日」と「秋分の日」を両方含む
 誤って確定扱いする事故を防いでいる。この年以前の春分/秋分は
 `confirmed: true`、これより後は `confirmed: false` になる。
 
-## Cloudflare Workers 版
-
-`worker/index.ts` はライブラリ本体を import するだけの薄いHTTP層。
-ランタイム依存はライブラリ同様ゼロ。
-
-```sh
-npm run worker:dev      # ローカルで起動 (wrangler dev)
-npm run worker:deploy   # Cloudflare にデプロイ
-```
-
-```
-GET /v1/meta
-GET /v1/holidays/:year                 例: /v1/holidays/2026
-GET /v1/holidays/:date                 例: /v1/holidays/2026-09-22
-GET /v1/business-days/add?date=&days=&calendar=
-GET /v1/business-days/between?from=&to=&calendar=
-GET /v1/wareki?date=
-GET /v1/wareki/reverse?era=&year=&month=&day=
-```
-
-祝日が確定済み（`confirmed: true`）のレスポンスは長期キャッシュ、暫定を
-含む場合は短期キャッシュを返す。エラーはライブラリの例外をそのまま
-`{ error: { type, message } }` の形で400番台に変換する。
-
 ## API
 
 ```ts
 import {
   isHoliday,
+  holidaysForYear,
   isBusinessDay,
   addBusinessDays,
   businessDaysBetween,
@@ -113,6 +111,13 @@ import {
 
 isHoliday('2026-09-22');
 // => { date: {year:2026,month:9,day:22}, name: '国民の休日', category: 'bridge', confirmed: true }
+
+holidaysForYear(2026).length;
+// => 18（その年の祝日を日付順に全件。振替休日・国民の休日を含む。
+//        statutoryHolidaysForYear はこの2種を除いた16件を返す）
+
+holidaysForYear(2026)[0];
+// => { date: {year:2026,month:1,day:1}, name: '元日', category: 'statutory', confirmed: true }
 
 isBusinessDay('2026-12-31', 'bank');
 // => false（'national' なら true。銀行休業日は 'bank' カレンダーだけの扱い）
@@ -212,28 +217,39 @@ formatWareki(w, 'JA');                 // ✗ InvalidArgumentError — 未知の
 確認済み。1949〜1954年（公式データの収録範囲外）は検証手段がなく、
 この式による外挿でしかない。
 
-## サポート範囲と免責
+## Cloudflare Workers 版
 
-このライブラリが扱う範囲と、意図的に扱わない範囲:
+**こちらでホストしている API は無い。** `worker/index.ts` はライブラリ本体を
+import するだけの薄いHTTP層で、自分の Cloudflare アカウントにデプロイして使う。
+下の URL はデプロイ先からの相対パス。ランタイム依存はライブラリ同様ゼロ。
 
-- **対応年。** 祝日判定・営業日計算は 1949–2099年。範囲外は
-  `OutOfRangeError`。和暦変換は明治6年1月1日（1873-01-01）以降。
-- **`equinoxConfirmedThrough` を超える春分・秋分は予報であって事実ではない。**
-  `confirmed: false` を付けて返す。確定した日付として扱わず、フラグを見ること。
-- **1949–1954年は独立した検証ができない。** この6年は公式データの範囲外で、
-  近似式の外挿に依拠している。1948年の祝日法の条文を根拠にテストで固定して
-  あるが、これは得られる中で最善のチェックであって、公表値との突き合わせでは
-  ない。
-- **カレンダーは `'national'` と `'bank'` の2種のみ。** 企業・業界独自の
-  休業日は対象外。
-- **無保証。** ソフトウェアは MIT ライセンスの "AS IS" 提供。祝日・営業日の
-  判定結果が法的・金融的・規制上の判断に適することは保証しない。正確性が
-  重要な用途では内閣府の公表データで確認すること。
+```
+GET /v1/meta
+GET /v1/holidays/:year                 例: /v1/holidays/2026
+GET /v1/holidays/:date                 例: /v1/holidays/2026-09-22
+GET /v1/business-days/add?date=&days=&calendar=
+GET /v1/business-days/between?from=&to=&calendar=
+GET /v1/wareki?date=
+GET /v1/wareki/reverse?era=&year=&month=&day=
+```
+
+祝日が確定済み（`confirmed: true`）のレスポンスは長期キャッシュ、暫定を
+含む場合は短期キャッシュを返す。エラーはライブラリの例外をそのまま
+`{ error: { type, message } }` の形で400番台に変換する。
+
+デプロイはメンテナ／運用者の作業なので、コマンドは
+[メンテナ向け](#メンテナ向け)にある。
 
 ## メンテナ向け
 
 ここから下はライブラリを「使う」話ではなく「触る」話。コントリビュートは
 [CONTRIBUTING.md](./CONTRIBUTING.md)（英語）から。
+
+**このリポジトリでの作業には Node.js 22 以降が必要**（公開パッケージ自体は
+Node.js 20 以降で動く）。下の `scripts/` は `.ts` のまま Node の型ストリッピングで
+実行し、`wrangler` も 22 を要求するため。20 以降で動くという約束は公開成果物に
+ついてのもので、リリースのたびに packed tarball を実機の Node 20 に install して
+検証している。
 
 ## 公式データの更新
 
@@ -248,49 +264,27 @@ node scripts/fetch-syukujitsu.ts
 node scripts/report.ts
 ```
 
-GitHub Actions の **Update holiday data** ワークフローが毎月1日に実行され、
-差分があれば `chore/update-holiday-data` ブランチに push する。
-`workflow_dispatch` で手動実行もできる。
+GitHub Actions の **Update holiday data** ワークフローが毎月（1日 21:00 UTC ＝
+JST では2日 06:00）実行され、差分があれば `chore/update-holiday-data` ブランチに
+push する。`workflow_dispatch` で手動実行もできる。
+
+## Worker の実行とデプロイ
+
+```sh
+npm run worker:dev      # ローカルで起動 (wrangler dev)
+npm run worker:deploy   # 自分の Cloudflare アカウントにデプロイ
+```
 
 ## テストの構成
-
-- `test/officialMatch.test.ts` — ルールエンジンの出力を、内閣府公式データの
-  収録範囲（1955〜収録最終年）の**全日付・全名称**と突き合わせる。差分が
-  1件でもあれば失敗する。祝日ルールの正しさを担保する最も強い検証。
-- `test/holidays.test.ts` / `test/businessDays.test.ts` — 公式データの収録
-  範囲外や、法改正の境界年など、ピンポイントのケースを手書きで検証する。
-  公式データが届かない1949〜1954年の6年ぶんは、祝日法（昭和23年法律
-  第178号）の条文を根拠に固定している。
-- `test/civil.test.ts` / `test/input.test.ts` / `test/wareki.test.ts` —
-  日付基盤とタイムゾーン非依存性、和暦変換の検証。`input.test.ts` は
-  日付×UTCオフセット形式の全組み合わせを、実装とは別経路で計算した
-  期待値と突き合わせる。
-- `test/invariants.test.ts` — 1949〜2099年の全域で成り立つべき性質
-  （日付の重複が無い、振替休日・国民の休日が日曜に来ない、祝日は必ず
-  非営業日）と、ライブラリが返す値が不変であることの検証。
-- `test/errors.test.ts` — エラーの `name`。ミニファイヤを実際に走らせる
-  検証を含む（ミニファイこそが `name` を壊す原因のため）。
-- `test/worker.test.ts` — HTTP API。エクスポートされた `fetch` ハンドラを
-  直接呼ぶ。全ルートの応答を共通の契約（content-type / CORS / キャッシュ
-  階層、エラーの封筒形状と `no-store`）と、各ルート固有のペイロードの
-  両面で検証する。
-- `test/fetchScript.test.ts` — CSVのパースと、データ更新スクリプトの
-  健全性チェック・退行ガード。これらは通常 GitHub Actions 上でしか
-  動かないため、ここで単体検証する。
-- `test/argumentValidation.test.ts` — 日付以外の全引数
-  （`CalendarKind`・日数・年・和暦の形式とオブジェクト形状）。
-  ここにあるケースはいずれも、修正前は例外ではなくそれらしい誤答を返していた。
-- `test/echoBounds.test.ts` — 呼び出し側の入力をエラーメッセージに載せる
-  Worker の全経路に実リクエストを投げ、入力が丸ごと反射されないことを確認する。
-- `test/performance.test.ts` — `businessDaysBetween` が閉形式のままで
-  あることを検証する。日単位走査に退行してもこのテストだけが検出する
-  （素朴な実装でも答えは同じで、遅くなるだけのため）。
 
 ```sh
 npm test               # 全テスト
 npm run test:tz        # 4つのタイムゾーンで全テストを実行し、結果が同一であることを確認
 npm run typecheck      # ライブラリ本体・スクリプト・Worker の3プロジェクトを型検査
 ```
+
+どのテストファイルが何を守っているか、どの領域を触ったらどれを再実行すべきかは
+[CONTRIBUTING.md](./CONTRIBUTING.md#what-each-test-file-covers)（英語）にある。
 
 ## ビルド・パッケージ構成
 

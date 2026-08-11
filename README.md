@@ -1,15 +1,18 @@
 # japan-calendar
 
+[![npm](https://img.shields.io/npm/v/japan-calendar.svg)](https://www.npmjs.com/package/japan-calendar)
 [![CI](https://github.com/tomatomerde/japan-calendar/actions/workflows/ci.yml/badge.svg)](https://github.com/tomatomerde/japan-calendar/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Bundled data: CC BY 4.0](https://img.shields.io/badge/bundled%20data-CC%20BY%204.0-blue.svg)](./NOTICE)
 [![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-brightgreen.svg)](#install)
 [![dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen.svg)](./package.json)
 
 **English** | [日本語](./README.ja.md)
 
 A zero-dependency TypeScript library for Japanese holidays, business-day
-arithmetic, and wareki (Japanese era) date conversion — shipped both as an
-npm package and as an HTTP API on Cloudflare Workers.
+arithmetic, and wareki (Japanese era) date conversion — shipped as an npm
+package, and usable as an HTTP API you deploy yourself on Cloudflare Workers
+(there is no hosted endpoint; see [Cloudflare Workers](#cloudflare-workers)).
 
 Most free holiday libraries only answer "is this a holiday?". This one
 also treats **business-day arithmetic as a first-class feature**
@@ -44,13 +47,33 @@ addBusinessDays('2026-05-01', 3);
 Node.js 20+. No dependencies, no runtime data fetching, and the ESM bundle runs
 unchanged in browsers and on Cloudflare Workers.
 
-> **Status: pre-release.** Holiday judgment, business-day arithmetic, wareki
-> conversion, and the Cloudflare Workers HTTP API are all implemented and
-> tested, but **nothing has been published to npm yet** — the install command
-> above will not resolve until the first release. The version is `0.x`, so the
-> API may still change. This is a personal project maintained on a best-effort
-> basis; see "Support scope and disclaimer" below before relying on it for
-> anything that matters.
+> **Maintenance posture.** The version is `0.x`, so the API may still change
+> between minor releases; anything that changes is recorded in
+> [CHANGELOG.md](./CHANGELOG.md). This is a personal project maintained on a
+> best-effort basis. Read the next section before relying on it for anything
+> that matters.
+
+## Support scope and disclaimer
+
+What this library covers, and what it deliberately does not:
+
+- **Supported years.** Holiday and business-day functions cover
+  1949-2099; anything outside raises `OutOfRangeError`. Wareki conversion
+  covers Meiji 6-1-1 (1873-01-01) onward.
+- **Equinox dates beyond `equinoxConfirmedThrough` are forecasts, not
+  facts.** They are returned with `confirmed: false`. Don't treat them as
+  settled dates — check the flag.
+- **1949-1954 cannot be independently verified.** Those six years fall
+  outside the official data, so they rely on the approximation formula's
+  extrapolation. They are pinned by tests derived from the text of the
+  1948 Public Holiday Law, which is the best available check, not a
+  confirmation against published dates.
+- **Only two calendars are provided**, `'national'` and `'bank'`.
+  Company- or industry-specific closure days are out of scope.
+- **No warranty.** The software is provided "AS IS" under the MIT
+  License. Holiday and business-day results are not guaranteed to be
+  fit for legal, financial, or regulatory decisions; verify against the
+  Cabinet Office's own publication where correctness is load-bearing.
 
 ## Design principles
 
@@ -86,36 +109,12 @@ Requiring both to be present avoids mistakenly treating a year that was
 only partially appended mid-year as finalized. Equinox dates up to and
 including this year are `confirmed: true`; beyond it, `confirmed: false`.
 
-## Cloudflare Workers
-
-`worker/index.ts` is a thin HTTP layer that just imports the library.
-Zero runtime dependencies, same as the library itself.
-
-```sh
-npm run worker:dev      # run locally (wrangler dev)
-npm run worker:deploy   # deploy to Cloudflare
-```
-
-```
-GET /v1/meta
-GET /v1/holidays/:year                 e.g. /v1/holidays/2026
-GET /v1/holidays/:date                 e.g. /v1/holidays/2026-09-22
-GET /v1/business-days/add?date=&days=&calendar=
-GET /v1/business-days/between?from=&to=&calendar=
-GET /v1/wareki?date=
-GET /v1/wareki/reverse?era=&year=&month=&day=
-```
-
-Responses where every holiday is finalized (`confirmed: true`) get a
-long cache lifetime; responses with a tentative holiday get a short one.
-Errors are the library's own exceptions, passed straight through as
-`{ error: { type, message } }` with a 4xx status.
-
 ## API
 
 ```ts
 import {
   isHoliday,
+  holidaysForYear,
   isBusinessDay,
   addBusinessDays,
   businessDaysBetween,
@@ -126,6 +125,13 @@ import {
 
 isHoliday('2026-09-22');
 // => { date: {year:2026,month:9,day:22}, name: '国民の休日', category: 'bridge', confirmed: true }
+
+holidaysForYear(2026).length;
+// => 18 (every holiday in the year, in date order, substitute and bridge
+//        holidays included; statutoryHolidaysForYear omits those two kinds)
+
+holidaysForYear(2026)[0];
+// => { date: {year:2026,month:1,day:1}, name: '元日', category: 'statutory', confirmed: true }
 
 isBusinessDay('2026-12-31', 'bank');
 // => false (true for 'national'; the year-end/New Year bank holiday window only applies to 'bank')
@@ -230,32 +236,41 @@ vernal/autumnal dates in total) with **zero discrepancies**. Years
 1949-1954 (outside the official data's coverage) have no way to be
 verified and rely purely on this formula's extrapolation.
 
-## Support scope and disclaimer
+## Cloudflare Workers
 
-What this library covers, and what it deliberately does not:
+**There is no hosted instance of this API.** `worker/index.ts` is a thin
+HTTP layer over the library that you deploy to your own Cloudflare
+account; the URLs below are relative to wherever you deploy it. Zero
+runtime dependencies, same as the library itself.
 
-- **Supported years.** Holiday and business-day functions cover
-  1949-2099; anything outside raises `OutOfRangeError`. Wareki conversion
-  covers Meiji 6-1-1 (1873-01-01) onward.
-- **Equinox dates beyond `equinoxConfirmedThrough` are forecasts, not
-  facts.** They are returned with `confirmed: false`. Don't treat them as
-  settled dates — check the flag.
-- **1949-1954 cannot be independently verified.** Those six years fall
-  outside the official data, so they rely on the approximation formula's
-  extrapolation. They are pinned by tests derived from the text of the
-  1948 Public Holiday Law, which is the best available check, not a
-  confirmation against published dates.
-- **Only two calendars are provided**, `'national'` and `'bank'`.
-  Company- or industry-specific closure days are out of scope.
-- **No warranty.** The software is provided "AS IS" under the MIT
-  License. Holiday and business-day results are not guaranteed to be
-  fit for legal, financial, or regulatory decisions; verify against the
-  Cabinet Office's own publication where correctness is load-bearing.
+```
+GET /v1/meta
+GET /v1/holidays/:year                 e.g. /v1/holidays/2026
+GET /v1/holidays/:date                 e.g. /v1/holidays/2026-09-22
+GET /v1/business-days/add?date=&days=&calendar=
+GET /v1/business-days/between?from=&to=&calendar=
+GET /v1/wareki?date=
+GET /v1/wareki/reverse?era=&year=&month=&day=
+```
+
+Responses where every holiday is finalized (`confirmed: true`) get a
+long cache lifetime; responses with a tentative holiday get a short one.
+Errors are the library's own exceptions, passed straight through as
+`{ error: { type, message } }` with a 4xx status.
+
+Deploying it is a maintainer/operator task — see
+[For maintainers](#for-maintainers) for the commands.
 
 ## For maintainers
 
 The rest of this file is about working on the library rather than using it.
 Contributors should start from [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+**Working on this repository needs Node.js 22+**, even though the published
+package supports Node.js 20+. The `scripts/` entry points below are run as
+`.ts` files through Node's type stripping, and `wrangler` also requires 22.
+The 20+ promise covers the published artifact, and every release verifies it
+by installing the packed tarball on a real Node 20 runtime.
 
 ## Updating the official data
 
@@ -270,54 +285,29 @@ node scripts/fetch-syukujitsu.ts
 node scripts/report.ts
 ```
 
-The **Update holiday data** GitHub Actions workflow runs on the 1st of
-every month and pushes any diff to the `chore/update-holiday-data`
-branch. It can also be run manually via `workflow_dispatch`.
+The **Update holiday data** GitHub Actions workflow runs monthly (the 1st
+at 21:00 UTC, which is the 2nd at 06:00 JST) and pushes any diff to the
+`chore/update-holiday-data` branch. It can also be run manually via
+`workflow_dispatch`.
+
+## Running and deploying the Worker
+
+```sh
+npm run worker:dev      # run locally (wrangler dev)
+npm run worker:deploy   # deploy to your own Cloudflare account
+```
 
 ## Test suite
-
-- `test/officialMatch.test.ts` — Checks the rule engine's output against
-  **every date and name** in the Cabinet Office's official data (1955
-  through the latest year covered). A single mismatch fails the test.
-  This is the strongest guarantee that the holiday rules are correct.
-- `test/holidays.test.ts` / `test/businessDays.test.ts` — Hand-written
-  checks for cases outside the official data's coverage, law-amendment
-  boundary years, and similar edge cases. Includes 1949-1954, the six
-  years the official data can't reach, pinned against the text of the
-  1948 Public Holiday Law.
-- `test/civil.test.ts` / `test/input.test.ts` / `test/wareki.test.ts` —
-  The date foundation, timezone independence, and wareki conversion.
-  `input.test.ts` sweeps every combination of date and UTC-offset style
-  against an independently computed expectation.
-- `test/invariants.test.ts` — Properties that must hold across all of
-  1949-2099 (no duplicate dates, no substitute/national holiday on a
-  Sunday, every holiday is a non-business day), plus the immutability of
-  everything the library hands back.
-- `test/errors.test.ts` — Error `name`s, including a check that runs a
-  real minifier over the library, since minification is what breaks them.
-- `test/worker.test.ts` — The HTTP API, calling the exported `fetch`
-  handler directly. Every route's response is checked against a shared
-  contract (content-type, CORS, cache tier; error envelope and
-  `no-store`) as well as its own payload.
-- `test/fetchScript.test.ts` — CSV parsing and the sanity/regression
-  guards in the data-update script, which are otherwise only exercised
-  on a GitHub Actions runner.
-- `test/argumentValidation.test.ts` — Every non-date argument
-  (`CalendarKind`, day counts, years, wareki formats and shapes). Each
-  case here used to return a plausible wrong answer instead of failing.
-- `test/echoBounds.test.ts` — Drives real requests at every Worker path
-  that puts caller input into an error message, checking none of them
-  reflects the input at full length.
-- `test/performance.test.ts` — Asserts `businessDaysBetween` stays
-  closed-form rather than degrading to a day-by-day scan. This is the
-  only test that catches that regression, since the naive path returns
-  the same answers, just slowly.
 
 ```sh
 npm test               # run all tests
 npm run test:tz        # run all tests under 4 timezones and confirm identical results
 npm run typecheck      # type-check all 3 projects: the library, scripts, and the Worker
 ```
+
+What each test file covers, and which of them you need to re-run after
+touching a given area, is in
+[CONTRIBUTING.md](./CONTRIBUTING.md#what-each-test-file-covers).
 
 ## Build & package layout
 
