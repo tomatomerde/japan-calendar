@@ -6,6 +6,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/) once
 it reaches its first published release.
 
+## [Unreleased]
+
+### Fixed
+
+- The README (both languages) told readers the package was unpublished —
+  "nothing has been published to npm yet — the install command above will
+  not resolve" — directly under the install command, while `0.1.0` had been
+  on npm since 2026-08-10. The maintenance posture that was buried in the
+  same stale block (0.x, best-effort) now lives in the disclaimer section,
+  where removing the block cannot take it along.
+- `update-holidays.yml` aborted with a bare non-zero exit when `gh pr list`
+  failed for reasons unrelated to this repository — an API rate limit is the
+  case that has actually happened on a sibling repository, three times. The
+  regenerated data is already pushed by that point, so the run was reporting
+  a delivered update as an unexplained failure, with nothing in the log
+  naming the branch that was waiting. Every failure path after the push now
+  carries the branch name and the compare link.
+- The `schedule:` comment claimed 06:00 JST on the 1st. `0 21 1 * *` is
+  21:00 UTC on the 1st, which is 06:00 JST on the **2nd** — cron is
+  evaluated in UTC and the +09:00 conversion crosses midnight.
+
+### Added
+
+- `scripts/assert-npm-version.sh`, called twice in `release.yml`: after the
+  global npm upgrade, and again immediately before publishing. The second
+  call is the one that matters — the Node 20 consumer check re-runs
+  `actions/setup-node`, which can put the Node-bundled npm (10.9.x, below
+  trusted publishing's 11.5.1 floor) back on PATH, and the resulting failure
+  is an authentication error that names no version.
+
+### Changed
+
+- README (both languages) reordered so that support scope and the
+  disclaimer come *before* the API reference rather than after it, and so
+  that the Cloudflare Workers section says plainly that no hosted instance
+  exists. `holidaysForYear` is now documented in the API section instead of
+  appearing only in an error example. The per-file test-suite listing moved
+  to `CONTRIBUTING.md`, and the Node 22+ development requirement is stated
+  next to the `scripts/` commands that need it.
+
 ## [0.1.0] - 2026-08-10
 
 First release.
