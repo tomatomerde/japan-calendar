@@ -62,21 +62,25 @@ force push では消せない。GitHub は `refs/pull/*/head` 経由で旧コミ
 
 ## いま open なこと
 
-### 1. trusted publishing 経由のリリースがまだ1本も出ていない
+### 1. publish の戻り先が無くなった（`NPM_TOKEN` 削除済み・2026-08-12）
 
-移行自体は済んでいてワークフローにトークンは無いが、**通ることを確かめる手段が次の
-リリースしかない**。dry run は `npm publish` に到達せず、`v0.1.0` を押し直しても
-「既にレジストリにある」でスキップされる。
+trusted publishing 経由のリリースが `v0.1.1`（run `31558130943`）で実際に通った。
+`Signed provenance statement with source and build information from GitHub Actions` が
+ログに出ている。戻り先として `NPM_TOKEN` を残す理由が消えたため削除した——
+**人間が3案件の Actions secret を消し、npm 側のトークンも revoke したとの報告。**
+セッションからはシークレット一覧を読めないので、こちらで実物を確認したわけではない。
 
-→ **`NPM_TOKEN` の secret は消さない。** 現在は未使用だが、交換が失敗したときの戻り先。
-**このトークンは 2026-08-10 から90日で失効する**ので、それまでにリリースが1本も出なければ、
-更新するか戻り先を捨てるかを意識的に決めること。
+`release.yml` は3案件とも `NPM_TOKEN` を参照していないので、リリースは壊れない。
+ただし**これで publish は npmjs.com 側の trusted publisher 登録だけに依存する**。
+登録（publisher: GitHub Actions / このリポジトリ / `release.yml` / environment 空）を
+消すか、ワークフローのファイル名を変えると、戻り先が無いのでリリースが止まる。
+open な項目として残しているのはこの一点。
 
-2026-08-11 に、publish 直前の npm 版を再確認するステップを足した
-（`scripts/assert-npm-version.sh`）。Node 20 での消費者チェックのあとに `setup-node` を
-もう一度走らせる構成なので、そこで同梱 npm（10.9.x = OIDC の下限 11.5.1 未満）に
-戻りうる、という穴を塞ぐもの。スクリプト自体は 11.5.0 で落ち 11.5.1 で通ることを
-スタブで確認済みだが、**ランナー上で実際に下がるかどうかは次のリリースまで未検証**。
+2026-08-11 に足した `scripts/assert-npm-version.sh`（publish 直前の npm 版の再確認）は、
+`v0.1.1` の実行では **12.0.2 のまま**通った。最後の `setup-node` が tool cache の同じ
+Node 22 を選び直したためで、予想どおりの挙動。**つまり「同梱 npm（10.9.x）に戻る」現象
+自体は、実機ではまだ一度も観測されていない。** ガードが仕事をしたのではなく、ガードが
+要る状況がまだ起きていない、というのが正確。
 
 ### 2. `update-holidays.yml` の残り検証
 
