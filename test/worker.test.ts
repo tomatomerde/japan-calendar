@@ -232,6 +232,12 @@ describe('GET /v1/wareki', () => {
   it('対応範囲外は 400', async () => {
     await expectJsonError(get('/v1/wareki?date=1800-01-01'), 400, 'UnsupportedWarekiRangeError');
   });
+
+  // 未来日の和暦は「現行の元号が続く」前提の予報でしかない（平成→令和で
+  // 実際に破られている）。予報を 30日 immutable でキャッシュさせないこと。
+  it('未来日は short キャッシュになる（元号継続の仮定は予報だから）', async () => {
+    await expectJsonSuccess(get('/v1/wareki?date=9999-12-31'), 'short');
+  });
 });
 
 describe('GET /v1/wareki/reverse', () => {
@@ -245,6 +251,14 @@ describe('GET /v1/wareki/reverse', () => {
   it('month が範囲外なら 400', async () => {
     await expectJsonError(get('/v1/wareki/reverse?era=令和&year=1&month=13&day=1'), 400, 'InvalidWarekiDateError');
   });
+
+  it('未来日に解決される変換は short キャッシュになる', async () => {
+    const body = (await expectJsonSuccess(
+      get('/v1/wareki/reverse?era=令和&year=7981&month=12&day=31'),
+      'short',
+    )) as { date: string };
+    expect(body.date).toBe('9999-12-31');
+  });
 });
 
 describe('未知のルート', () => {
@@ -254,8 +268,8 @@ describe('未知のルート', () => {
 });
 
 describe('GET / — インデックス', () => {
-  it('ルート一覧を返す', async () => {
-    const body = (await expectJsonSuccess(get('/'), 'long')) as { name: string; routes: string[] };
+  it('ルート一覧を返す（デプロイで変わりうるので short キャッシュ）', async () => {
+    const body = (await expectJsonSuccess(get('/'), 'short')) as { name: string; routes: string[] };
     expect(body.name).toBe('japan-calendar');
     expect(body.routes).toContain('GET /v1/meta');
   });

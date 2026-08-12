@@ -63,6 +63,12 @@ What this library covers, and what it deliberately does not:
 - **Equinox dates beyond `equinoxConfirmedThrough` are forecasts, not
   facts.** They are returned with `confirmed: false`. Don't treat them as
   settled dates — check the flag.
+- **Wareki conversions of future dates assume the current era continues.**
+  An era's end is not knowable in advance — the 2019 Heisei → Reiwa change
+  is the standing precedent — so converting a future date to or from wareki
+  is a forecast in the same sense as an unconfirmed equinox, not a settled
+  fact. There is no upper bound on the supported range; the assumption just
+  grows with the distance.
 - **1949-1954 cannot be independently verified.** Those six years fall
   outside the official data, so they rely on the approximation formula's
   extrapolation. They are pinned by tests derived from the text of the
@@ -255,6 +261,9 @@ GET /v1/wareki/reverse?era=&year=&month=&day=
 
 Responses where every holiday is finalized (`confirmed: true`) get a
 long cache lifetime; responses with a tentative holiday get a short one.
+Wareki responses get the long lifetime only for dates that have already
+passed — a future date's conversion assumes the current era continues,
+so it gets the short one.
 Errors are the library's own exceptions, passed straight through as
 `{ error: { type, message } }` with a 4xx status.
 
