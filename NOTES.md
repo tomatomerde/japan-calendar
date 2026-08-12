@@ -7,11 +7,10 @@
 （積むと再開時に「で、何をすればいいのか」が埋もれる）。
 恒久的な設計判断は `CONTRIBUTING.md`。
 
-最終更新: 2026-08-11（公開後レビュー。`wrangler dev` 実機での Worker 検証を
-消し込み、README の「未公開」表記の誤りを修正し、リリース／データ更新
-ワークフローの穴を2件塞いだ）
+最終更新: 2026-08-12（CLAUDE.md に残っていた作業方針の節を dev-standards へ移した #38。
+あわせて、済んでいた「マージ済みブランチの掃除」をこのファイルから消し込んだ）
 
-**npm 公開済み**: `japan-calendar@0.1.0`（2026-08-10、provenance attestation 付き）。
+**npm 公開済み**: `japan-calendar@0.1.1`（provenance attestation 付き）。
 
 ## 最初に: どのリポジトリで作業するか
 
@@ -108,12 +107,12 @@ CSV が1バイトも変わっていなくても必ず「差分あり」になり
 
 ### 3. 人間の操作待ち
 
-- **マージ済みブランチの掃除**（セッションの資格情報では `git push --delete` が 403）。
-  再発防止に `gh repo edit tomatomerde/japan-calendar --delete-branch-on-merge` を先に
-  実行しておくとよい（2026-08-10 時点で false）
 - **`can_approve_pull_request_reviews` を有効にするかの判断。** オンにすれば
   `update-holidays.yml` の PR が自動で立つ。オフのままでも warning に degrade するので
   急ぎではない
+
+（マージ済みブランチの掃除は完了済み。2026-08-12 の実確認でリモートは `main` と
+`chore/update-holiday-data` のみで、マージ後のブランチ自動削除も効いている）
 
 ## まだ検証していない領域
 
