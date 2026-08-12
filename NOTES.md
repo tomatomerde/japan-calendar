@@ -62,21 +62,30 @@ force push では消せない。GitHub は `refs/pull/*/head` 経由で旧コミ
 
 ## いま open なこと
 
-### 1. trusted publishing 経由のリリースがまだ1本も出ていない
+### 1. 人間の操作待ち: `NPM_TOKEN` を消すこと
 
-移行自体は済んでいてワークフローにトークンは無いが、**通ることを確かめる手段が次の
-リリースしかない**。dry run は `npm publish` に到達せず、`v0.1.0` を押し直しても
-「既にレジストリにある」でスキップされる。
+trusted publishing 経由のリリースは**もう出た**。`v0.1.1`（2026-08-12、run `31558130943`）が
+`Signed provenance statement with source and build information from GitHub Actions` を出して
+publish されている。戻り先として `NPM_TOKEN` を残す理由が無くなったので、いまは
+**未使用のまま生きている publish 資格情報**という一番良くない状態になっている。
 
-→ **`NPM_TOKEN` の secret は消さない。** 現在は未使用だが、交換が失敗したときの戻り先。
-**このトークンは 2026-08-10 から90日で失効する**ので、それまでにリリースが1本も出なければ、
-更新するか戻り先を捨てるかを意識的に決めること。
+セッションからはシークレットを削除できないので、人間が2つとも実行すること。
+Actions secret を先に消す（npm 側だけ先に消すと、動かないシークレットが残る）:
 
-2026-08-11 に、publish 直前の npm 版を再確認するステップを足した
-（`scripts/assert-npm-version.sh`）。Node 20 での消費者チェックのあとに `setup-node` を
-もう一度走らせる構成なので、そこで同梱 npm（10.9.x = OIDC の下限 11.5.1 未満）に
-戻りうる、という穴を塞ぐもの。スクリプト自体は 11.5.0 で落ち 11.5.1 で通ることを
-スタブで確認済みだが、**ランナー上で実際に下がるかどうかは次のリリースまで未検証**。
+```sh
+gh secret delete NPM_TOKEN --repo tomatomerde/japan-calendar
+```
+
+そのうえで <https://www.npmjs.com/settings/~/tokens> でトークン本体を revoke する。
+**同じトークンが jp-address-romaji と itaiji-normalize でも使われている**ので、
+npm 側の revoke は3案件の Actions secret を消してから1回だけ行う。
+`release.yml` は3案件とも `NPM_TOKEN` を一切参照していないため、消してもリリースは壊れない。
+
+2026-08-11 に足した `scripts/assert-npm-version.sh`（publish 直前の npm 版の再確認）は、
+`v0.1.1` の実行では **12.0.2 のまま**通った。最後の `setup-node` が tool cache の同じ
+Node 22 を選び直したためで、予想どおりの挙動。**つまり「同梱 npm（10.9.x）に戻る」現象
+自体は、実機ではまだ一度も観測されていない。** ガードが仕事をしたのではなく、ガードが
+要る状況がまだ起きていない、というのが正確。
 
 ### 2. `update-holidays.yml` の残り検証
 
