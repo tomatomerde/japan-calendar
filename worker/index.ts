@@ -14,11 +14,11 @@
  *   GET /v1/wareki/reverse?era=&year=&month=&day=
  */
 
-import { toIsoDate, type CivilDate } from '../src/civil.js';
+import { compareCivil, toIsoDate, type CivilDate } from '../src/civil.js';
 import { OFFICIAL_META } from '../src/data/official.js';
 import { JapanCalendarError, describeValue } from '../src/errors.js';
 import { MAX_SUPPORTED_YEAR, MIN_SUPPORTED_YEAR, assertYearInRange, holidaysForYear } from '../src/holidays.js';
-import { toCivilDate } from '../src/input.js';
+import { civilFromInstant, toCivilDate } from '../src/input.js';
 import { addBusinessDays, businessDaysBetween, type CalendarKind } from '../src/businessDays.js';
 import { formatWareki, fromWareki, toWareki, WAREKI_SUPPORTED_FROM, type EraInput } from '../src/wareki.js';
 import type { Holiday } from '../src/types.js';
@@ -41,7 +41,8 @@ const CORS_HEADERS = {
 type CacheTier = 'long' | 'short' | 'none';
 
 const CACHE_CONTROL: Record<CacheTier, string> = {
-  // Data that never changes later, such as wareki conversions or finalized holidays.
+  // Data that never changes later, such as wareki conversions of past dates
+  // or finalized holidays.
   long: 'public, max-age=2592000, immutable',
   // Data that may depend on a tentative equinox date, or metadata.
   short: 'public, max-age=3600',
@@ -81,6 +82,20 @@ function serializeHoliday(holiday: Holiday): {
     category: holiday.category,
     confirmed: holiday.confirmed,
   };
+}
+
+/**
+ * Whether `date` is no later than today (in JST, at the time of the request).
+ *
+ * A wareki conversion of a past date can never change, but one of a future
+ * date rests on the assumption that the current era is still in effect then
+ * -- an assumption reality has already broken once (Heisei → Reiwa, 2019).
+ * The library itself stays clock-free (pure functions), so the request-time
+ * distinction between "settled" and "forecast" is made here, where "now"
+ * exists, and only affects how long the answer may be cached.
+ */
+function isSettledDate(date: CivilDate): boolean {
+  return compareCivil(date, civilFromInstant(Date.now())) <= 0;
 }
 
 function requireParam(searchParams: URLSearchParams, name: string): string {
@@ -155,6 +170,7 @@ function handleBusinessDaysBetween(searchParams: URLSearchParams): Response {
 function handleWareki(searchParams: URLSearchParams): Response {
   const date = requireParam(searchParams, 'date');
   const wareki = toWareki(date);
+  const civil: CivilDate = { year: wareki.gregorianYear, month: wareki.month, day: wareki.day };
   return jsonResponse(
     {
       ...wareki,
@@ -166,7 +182,7 @@ function handleWareki(searchParams: URLSearchParams): Response {
       },
     },
     200,
-    'long',
+    isSettledDate(civil) ? 'long' : 'short',
   );
 }
 
@@ -176,7 +192,7 @@ function handleWarekiReverse(searchParams: URLSearchParams): Response {
   const month = parseInteger(requireParam(searchParams, 'month'), 'month');
   const day = parseInteger(requireParam(searchParams, 'day'), 'day');
   const civil = fromWareki(era, year, month, day);
-  return jsonResponse({ date: toIsoDate(civil) }, 200, 'long');
+  return jsonResponse({ date: toIsoDate(civil) }, 200, isSettledDate(civil) ? 'long' : 'short');
 }
 
 function handleMeta(): Response {
@@ -208,7 +224,9 @@ function handleIndex(): Response {
       ],
     },
     200,
-    'long',
+    // The route list changes with deploys; a 30-day immutable cache would
+    // hide a new or changed route from returning clients for a month.
+    'short',
   );
 }
 

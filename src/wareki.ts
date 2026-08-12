@@ -63,7 +63,7 @@ export interface EraDefinition {
  * library's support window (the day after the calendar reform). Meiji
  * years 1-5 used the old lunisolar calendar and are out of scope.
  */
-export const ERAS: readonly EraDefinition[] = [
+const ERA_DEFINITIONS: EraDefinition[] = [
   {
     name: '明治',
     romaji: 'Meiji',
@@ -106,8 +106,22 @@ export const ERAS: readonly EraDefinition[] = [
   },
 ];
 
-/** The start of the supported wareki range (Meiji 6-1-1). */
-export const WAREKI_SUPPORTED_FROM: CivilDate = { year: 1873, month: 1, day: 1 };
+// Frozen because the same instances are handed to every caller for the life
+// of the process. `readonly` is compile-time only: without the freeze, a
+// JavaScript consumer's `ERAS[0].startYear = ...` corrupts every subsequent
+// wareki conversion process-wide -- and on Cloudflare Workers, for every
+// request sharing the isolate. Same reasoning as the frozen holiday caches
+// in holidays.ts.
+for (const era of ERA_DEFINITIONS) {
+  Object.freeze(era.from);
+  if (era.to !== null) Object.freeze(era.to);
+  Object.freeze(era);
+}
+
+export const ERAS: readonly EraDefinition[] = Object.freeze(ERA_DEFINITIONS);
+
+/** The start of the supported wareki range (Meiji 6-1-1). Frozen for the same reason as `ERAS`. */
+export const WAREKI_SUPPORTED_FROM: CivilDate = Object.freeze({ year: 1873, month: 1, day: 1 });
 
 const SUPPORTED_FROM_DAYS = daysFromCivil(1873, 1, 1);
 

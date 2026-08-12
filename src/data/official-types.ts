@@ -6,7 +6,13 @@
 export type OfficialHolidayRow = readonly [date: string, name: string];
 
 export interface OfficialMeta {
-  /** When the data was fetched (ISO 8601 / UTC). `null` if never fetched. */
+  /**
+   * When the data last *changed* (ISO 8601 / UTC). `null` if never fetched.
+   *
+   * Not "when the fetch script last ran": while the fetched CSV's sha256
+   * matches the committed one, the previous value is carried forward
+   * unchanged, so a no-op refresh doesn't dirty the generated module.
+   */
   readonly fetchedAt: string | null;
   /** Source URL. */
   readonly sourceUrl: string;

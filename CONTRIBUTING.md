@@ -78,7 +78,12 @@ reintroduce a bug that was deliberately fixed.
   a consumer's `.sort()` or `.length = 0` corrupt the cache for the whole
   process — and on Workers, for every later request sharing the isolate.
   `readonly Holiday[]` is compile-time only and does nothing for
-  JavaScript consumers.
+  JavaScript consumers. The same applies to every module-level object the
+  package exports by reference: `ERAS` and `WAREKI_SUPPORTED_FROM` are
+  deep-frozen too, because before they were, a single
+  `ERAS[0].startYear = 1800` turned `toWareki('1900-01-01')` from Meiji 33
+  into Meiji 101 for the rest of the process. A new exported constant that
+  holds an object must be frozen the same way.
 - **Error `name`s must be assigned as string literals.** Setting
   `this.name` from `new.target.name` reads the class identifier, which
   minifiers rename: bundling with `esbuild --minify` turned the names

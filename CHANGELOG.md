@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/) once
 it reaches its first published release.
 
+## [0.1.2] - 2026-08-12
+
+### Fixed
+
+- The exported `ERAS` array — and `WAREKI_SUPPORTED_FROM` — was never
+  frozen, the one export missed when 0.1.0 froze the memoized holiday
+  lists and the generated official data. The defect class is identical:
+  the same instances are shared process-wide, so the single line
+  `ERAS[0].startYear = 1800` flipped `toWareki('1900-01-01')` from Meiji
+  33 to Meiji 101 for every later caller (demonstrated against the
+  published 0.1.1 package, through both the ESM and CJS builds), and on
+  Cloudflare Workers the damage would outlive the request. Both exports
+  are now deep-frozen (each era, its `from`/`to` dates, and the array
+  itself); `test/invariants.test.ts` pins it, and removing the freezing
+  makes the new tests fail.
+- The Worker served wareki conversions of **future** dates from the
+  30-day `immutable` cache tier. A future date's conversion assumes the
+  current era continues — an assumption reality broke in 2019 (Heisei →
+  Reiwa) — so `/v1/wareki?date=9999-12-31` answering `令和7981年` with a
+  month-long immutable cache presented a forecast as a settled fact, the
+  exact distinction this project exists to keep. Both wareki routes now
+  use the short tier whenever the (resolved) date is later than today in
+  JST at request time; past dates keep the long tier, since a conversion
+  that has already happened can never change. The library itself stays
+  clock-free — the request-time distinction lives in the Worker.
+- The Worker's `GET /` index route (the route listing) was also cached
+  for 30 days `immutable`, which would hide a new or changed route from
+  returning clients for a month after a deploy. Now short-cached.
+- `package-lock.json` still recorded `version: 0.0.0`; the 0.1.0/0.1.1
+  version bumps never touched it, so every `npm install` left a dirty
+  lockfile diff behind.
+
+### Changed
+
+- README (both languages): documented that future-date wareki
+  conversions rest on the current-era assumption, next to the equinox
+  forecast disclaimer it parallels; the Cloudflare Workers section now
+  states the corresponding cache behavior.
+- `OfficialMeta.fetchedAt`'s JSDoc caught up with the 0.1.1 semantic
+  change: it documents "when the data last changed", not "when the fetch
+  script last ran".
+
 ## [0.1.1] - 2026-08-11
 
 ### Fixed

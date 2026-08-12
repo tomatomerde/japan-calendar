@@ -18,6 +18,7 @@ import {
   MIN_SUPPORTED_YEAR,
 } from '../src/holidays.ts';
 import { OFFICIAL_HOLIDAYS, OFFICIAL_META } from '../src/data/official.ts';
+import { ERAS, WAREKI_SUPPORTED_FROM, toWareki } from '../src/wareki.ts';
 import { computeBridgeHolidays, computeSubstituteHolidays } from '../src/rules/observed.ts';
 import type { Holiday } from '../src/types.ts';
 
@@ -121,6 +122,35 @@ describe('公開する値は凍結されている（共有キャッシュを利�
   it('生成データ（OFFICIAL_HOLIDAYS / OFFICIAL_META）も凍結されている', () => {
     expect(Object.isFrozen(OFFICIAL_HOLIDAYS)).toBe(true);
     expect(Object.isFrozen(OFFICIAL_META)).toBe(true);
+  });
+
+  // 0.1.1 までの取り残し: 祝日キャッシュと生成データは凍結済みだったが、
+  // ERAS は素通しだった。`ERAS[0].startYear = 1800` の1行で
+  // toWareki('1900-01-01') が明治33年から明治101年に化け、以降の全変換が
+  // プロセス全体で壊れることを公開パッケージ 0.1.1 で実証済み。
+  it('ERAS は配列・要素・日付まで凍結されている', () => {
+    expect(Object.isFrozen(ERAS)).toBe(true);
+    for (const era of ERAS) {
+      expect(Object.isFrozen(era)).toBe(true);
+      expect(Object.isFrozen(era.from)).toBe(true);
+      if (era.to !== null) expect(Object.isFrozen(era.to)).toBe(true);
+    }
+    expect(Object.isFrozen(WAREKI_SUPPORTED_FROM)).toBe(true);
+  });
+
+  it('ERAS への破壊的な操作は TypeError になり、変換結果は健全なまま', () => {
+    expect(() => {
+      (ERAS[0] as { startYear: number }).startYear = 1800;
+    }).toThrow(TypeError);
+    expect(() => {
+      (ERAS as unknown as unknown[]).length = 0;
+    }).toThrow(TypeError);
+    expect(() => {
+      (ERAS[4] as { to: unknown }).to = { year: 2020, month: 1, day: 1 };
+    }).toThrow(TypeError);
+    const wareki = toWareki('1900-01-01');
+    expect(wareki.era).toBe('明治');
+    expect(wareki.eraYear).toBe(33);
   });
 });
 
