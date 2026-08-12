@@ -62,24 +62,19 @@ force push では消せない。GitHub は `refs/pull/*/head` 経由で旧コミ
 
 ## いま open なこと
 
-### 1. 人間の操作待ち: `NPM_TOKEN` を消すこと
+### 1. publish の戻り先が無くなった（`NPM_TOKEN` 削除済み・2026-08-12）
 
-trusted publishing 経由のリリースは**もう出た**。`v0.1.1`（2026-08-12、run `31558130943`）が
-`Signed provenance statement with source and build information from GitHub Actions` を出して
-publish されている。戻り先として `NPM_TOKEN` を残す理由が無くなったので、いまは
-**未使用のまま生きている publish 資格情報**という一番良くない状態になっている。
+trusted publishing 経由のリリースが `v0.1.1`（run `31558130943`）で実際に通った。
+`Signed provenance statement with source and build information from GitHub Actions` が
+ログに出ている。戻り先として `NPM_TOKEN` を残す理由が消えたため削除した——
+**人間が3案件の Actions secret を消し、npm 側のトークンも revoke したとの報告。**
+セッションからはシークレット一覧を読めないので、こちらで実物を確認したわけではない。
 
-セッションからはシークレットを削除できないので、人間が2つとも実行すること。
-Actions secret を先に消す（npm 側だけ先に消すと、動かないシークレットが残る）:
-
-```sh
-gh secret delete NPM_TOKEN --repo tomatomerde/japan-calendar
-```
-
-そのうえで <https://www.npmjs.com/settings/~/tokens> でトークン本体を revoke する。
-**同じトークンが jp-address-romaji と itaiji-normalize でも使われている**ので、
-npm 側の revoke は3案件の Actions secret を消してから1回だけ行う。
-`release.yml` は3案件とも `NPM_TOKEN` を一切参照していないため、消してもリリースは壊れない。
+`release.yml` は3案件とも `NPM_TOKEN` を参照していないので、リリースは壊れない。
+ただし**これで publish は npmjs.com 側の trusted publisher 登録だけに依存する**。
+登録（publisher: GitHub Actions / このリポジトリ / `release.yml` / environment 空）を
+消すか、ワークフローのファイル名を変えると、戻り先が無いのでリリースが止まる。
+open な項目として残しているのはこの一点。
 
 2026-08-11 に足した `scripts/assert-npm-version.sh`（publish 直前の npm 版の再確認）は、
 `v0.1.1` の実行では **12.0.2 のまま**通った。最後の `setup-node` が tool cache の同じ
