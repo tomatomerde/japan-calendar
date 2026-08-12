@@ -48,17 +48,12 @@ force push では消せない。GitHub は `refs/pull/*/head` 経由で旧コミ
 なお本文中の `b2996af` `399e3e5` `03e7e41` `758d2d8` は **dev-standards 側の SHA** で、
 このリポジトリでは解決しない。これは正常。
 
-## 共通部分は自動で配られる（手で同期しないこと）
+## 共通部分の配布は廃止された（2026-08-12）
 
-`CLAUDE.md` の `<!-- BEGIN dev-standards common -->` と `<!-- END dev-standards common -->` に
-挟まれた範囲は生成物で、原本（private リポジトリ `dev-standards` の
-`common/CLAUDE.common.md`）が変わるたびにこのリポジトリへ同期 PR が自動で届く。人間の仕事は
-その PR をマージすることだけ。`.github/workflows/check-common-integrity.yml` がその範囲を
-ハッシュ照合し、手で編集されていれば**落ちる**（警告ではなく失敗）。シークレットもネット
-ワークも使わないので fork からの PR でも動く。共通のルールを変えたいときは原本を直す。
-
-**原本 SHA は依頼の値を鵜呑みにせず、自分で main の HEAD を解決すること。**
-過去に2回外している（指示された SHA より原本が進んでいた）。
+かつて `CLAUDE.md` にはマーカーで挟まれた共通部分があり、private リポジトリから同期 PR で
+自動配布され、`check-common-integrity.yml` がハッシュ照合していた。**その配布は廃止され、
+マーカー・ハッシュ・照合ワークフローはすべて撤去済み。** `CLAUDE.md` はこのプロジェクトの
+技術的事実だけを持つ。共通部分を復元・再同期しないこと。
 
 ## いま open なこと
 
