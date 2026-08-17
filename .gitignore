@@ -4,3 +4,4 @@ coverage/
 .wrangler/
 *.tsbuildinfo
 demo/_site/
+demo/_work/
