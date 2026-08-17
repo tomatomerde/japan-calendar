@@ -13,7 +13,13 @@
     "wareki",
     "calendar",
     "jpx",
-    "cloudflare-workers"
+    "cloudflare-workers",
+    "祝日",
+    "営業日",
+    "和暦",
+    "日本の祝日",
+    "営業日計算",
+    "内閣府"
   ],
   "license": "MIT",
   "author": "tomatomerde",
