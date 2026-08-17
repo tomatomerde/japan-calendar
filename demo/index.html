@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>japan-calendar デモ — 日本の祝日・営業日・和暦をブラウザだけで試す</title>
+<meta name="description" content="内閣府の公式データを根拠に、日本の祝日判定・営業日計算・和暦変換を行う依存ゼロの npm ライブラリ japan-calendar のデモ。確定値と予測値を区別します。入力はブラウザの外に出ません。">
+<!-- Empty data URI, not a file: without this the browser requests
+     /favicon.ico, which is a network request the page tells visitors
+     it does not make. Cheaper to not make the request than to explain it. -->
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<header class="page-head">
+  <h1>japan-calendar <span class="version">v__JC_VERSION__</span></h1>
+  <p class="lead">
+    「その日は祝日か」だけでなく<strong>「3営業日後はいつか」</strong>まで答える、
+    依存ゼロの TypeScript ライブラリです。そして
+    <strong>まだ法的に確定していない祝日を、確定した祝日と同じ顔で返しません</strong>。
+  </p>
+  <p class="links">
+    <a href="https://www.npmjs.com/package/japan-calendar" target="_blank" rel="noopener noreferrer">npm</a>
+    <a href="https://github.com/tomatomerde/japan-calendar" target="_blank" rel="noopener noreferrer">GitHub</a>
+    <a href="https://github.com/tomatomerde/japan-calendar#readme" target="_blank" rel="noopener noreferrer">README</a>
+  </p>
+  <p class="offline" id="offline-note">
+    このページの計算は<strong>すべてブラウザの中</strong>で実行しています。
+    入力した日付はどこにも送信しません。
+    <span class="offline-detail">
+      ページを開いた直後に、npm 公開版の japan-calendar v__JC_VERSION__
+      （gzip 約 __BUNDLE_GZIP_KB__ KB）を読み込みます。<strong>その後は何を入力しても
+      リクエストは発生しません</strong>。祝日データはライブラリに焼き込まれていて、
+      実行時に取りに行きません。
+    </span>
+  </p>
+
+  <p class="request-meter" id="request-meter">
+    <span class="meter-label">読み込み後に発生した通信</span>
+    <output class="meter-value" id="request-count" for="holiday-input biz-from wareki-iso">0 件</output>
+    <span class="meter-note">
+      操作しながらこの数字を見てください。増えなければ、日付はこの端末から出ていません。
+      <strong>ただしこれはページ自身が数えた値です</strong>——鵜呑みにしたくない場合は、
+      ブラウザの開発者ツール（<kbd>F12</kbd>）の Network タブを開いたまま操作すると、
+      同じことを外側から確認できます。
+    </span>
+  </p>
+</header>
+
+<main>
+
+<section class="panel panel-guide">
+  <h2>このデモの見方</h2>
+  <p class="panel-lead">
+    どのボタンを押しても、確かめてほしいのは次の3つです。
+    <strong>各ボタンの下に「見どころ」を書いてあります。</strong>
+  </p>
+  <ol class="guide">
+    <li>
+      <strong>「確定」と「暫定」のバッジが分かれているか。</strong>
+      春分の日と秋分の日は、国立天文台の暦要項が官報に載るまで法的に決まりません。
+      いま確定しているのは <span class="fact" data-fact="equinox-through">…</span>まで。
+      その先の日付は<strong>計算による予測</strong>なので、
+      このライブラリは <code>confirmed: false</code> を付けて返します。
+      予測を事実と同じ顔で返すライブラリは、外れた年に黙って間違えます
+    </li>
+    <li>
+      <strong>受け付けない入力を、黙って解釈していないか。</strong> ここが本題です。
+      祝日ライブラリが日付を1日読み違えても、例外は出ません——<strong>違う日の答えが、
+      自信を持って返ってくるだけ</strong>です。そのずれは営業日計算に乗ると増幅します。
+      いちばん下の「<a href="#panel-input">入力の受け口</a>」で、
+      ありがちな書き方を片っ端から試した結果が見られます
+    </li>
+    <li>
+      <strong>入力が外に出ていないか。</strong> 上の「読み込み後に発生した通信」が
+      <code>0 件</code> のまま動かないこと
+    </li>
+  </ol>
+</section>
+
+<p id="loading" class="loading" role="status">ライブラリを読み込んでいます…</p>
+<p id="load-error" class="load-error" role="alert" hidden></p>
+
+<section class="panel" id="panel-holiday" hidden>
+  <h2>1. 祝日か調べる<code>isHoliday()</code></h2>
+  <p class="panel-lead">
+    日付を入れると、祝日名・種別・<strong>確定/暫定</strong>を返します。
+    初期値は <span class="fact" data-fact="official-range">…</span>の公式データの<strong>外側</strong>に
+    してあります——ルールを実装しているので、データが覆っていない年でも答えられる、というのが
+    このライブラリの主張だからです。
+  </p>
+
+  <div class="presets" id="holiday-presets"></div>
+
+  <label class="field field-inline">
+    <span class="field-label">日付</span>
+    <input id="holiday-input" type="date" value="2028-03-20">
+  </label>
+
+  <div id="holiday-output" class="output"></div>
+</section>
+
+<section class="panel" id="panel-biz" hidden>
+  <h2>2. N営業日後を求める<code>addBusinessDays()</code></h2>
+  <p class="panel-lead">
+    土日と祝日を飛ばして数えます。<code>bank</code> を選ぶと、これに加えて
+    銀行の年末年始休業（12/31〜1/3）も飛ばします。
+    <strong>飛ばした日を理由つきで下に並べます</strong>——答えだけ出されても検算できないので。
+  </p>
+
+  <div class="presets" id="biz-presets"></div>
+
+  <div class="field-row">
+    <label class="field field-inline">
+      <span class="field-label">起点</span>
+      <input id="biz-from" type="date" value="2026-12-30">
+    </label>
+    <label class="field field-inline field-narrow">
+      <span class="field-label">営業日数（負の数で過去へ）</span>
+      <input id="biz-n" type="number" value="1" step="1">
+    </label>
+    <fieldset class="field radios">
+      <legend class="field-label">カレンダー</legend>
+      <label><input type="radio" name="calendar" value="national" checked> national（祝日のみ）</label>
+      <label><input type="radio" name="calendar" value="bank"> bank（＋年末年始）</label>
+    </fieldset>
+  </div>
+
+  <div id="biz-output" class="output"></div>
+</section>
+
+<section class="panel" id="panel-wareki" hidden>
+  <h2>3. 和暦を変換する<code>toWareki()</code> / <code>fromWareki()</code></h2>
+  <p class="panel-lead">
+    改元は日単位で切り替わり、<strong>月日は繰り越します</strong>——
+    昭和64年1月7日の翌日は平成元年1月<strong>8</strong>日であって、平成元年1月1日ではありません。
+    存在しない和暦の日付（平成31年5月1日など）は、正しくはどの和暦に当たるかまで添えて失敗します。
+  </p>
+
+  <div class="presets" id="wareki-presets"></div>
+
+  <div class="wareki-cols">
+    <div class="wareki-col">
+      <h3 class="sub">西暦 → 和暦</h3>
+      <label class="field field-inline">
+        <span class="field-label">日付</span>
+        <input id="wareki-iso" type="date" value="2019-05-01">
+      </label>
+      <div id="wareki-iso-output" class="output"></div>
+    </div>
+
+    <div class="wareki-col">
+      <h3 class="sub">和暦 → 西暦</h3>
+      <div class="field-row">
+        <label class="field field-inline field-narrow">
+          <span class="field-label">元号</span>
+          <select id="era-select"></select>
+        </label>
+        <label class="field field-inline field-tiny">
+          <span class="field-label">年</span>
+          <input id="era-year" type="number" value="1" min="1" step="1">
+        </label>
+        <label class="field field-inline field-tiny">
+          <span class="field-label">月</span>
+          <input id="era-month" type="number" value="5" min="1" max="12" step="1">
+        </label>
+        <label class="field field-inline field-tiny">
+          <span class="field-label">日</span>
+          <input id="era-day" type="number" value="1" min="1" max="31" step="1">
+        </label>
+      </div>
+      <div id="wareki-back-output" class="output"></div>
+    </div>
+  </div>
+</section>
+
+<section class="panel" id="panel-input" hidden>
+  <h2>4. 入力の受け口<code>toCivilDate()</code></h2>
+  <p class="panel-lead">
+    <strong>このライブラリが受け付ける形と、受け付けない形を、実際に実行した結果です。</strong>
+    受け付けないほうが多いのは手抜きではありません——
+    <code>2028/3/20</code> を受けると決めた瞬間、<code>3/20/2028</code> を
+    どう読むかも決めなければならず、そこを間違えると<strong>例外ではなく違う日付</strong>が返ります。
+    このライブラリは境界を狭く引いて、外側は理由つきで断ります。
+  </p>
+
+  <div id="cases-output" class="output"></div>
+
+  <h3 class="sub sub-tz">タイムゾーン</h3>
+  <p class="panel-lead">
+    祝日ライブラリの誤答でいちばん多いのは「1日ずれる」で、これは<strong>例外を出さず、
+    実行した場所によって結果が変わる</strong>という形で起きます。
+    このライブラリの日付演算は<strong>すべて日本時間に固定</strong>されていて、
+    <code>Date</code> のローカルタイムゾーン API（<code>getFullYear()</code> など）を使いません。
+    以下は<strong>いまあなたのブラウザで実行した結果</strong>です。
+  </p>
+  <div id="tz-output" class="output"></div>
+</section>
+
+<section class="panel panel-note">
+  <h2>このライブラリが「しない」こと</h2>
+  <ul class="notes">
+    <li>
+      <strong>確定していない祝日を、確定した祝日として返さない。</strong>
+      春分・秋分の日付は暦要項が官報公表されるまで法的に決まらないので、
+      <span class="fact" data-fact="equinox-through">…</span>より先は
+      <code>confirmed: false</code> です。<strong>予測値そのものは返します</strong>——
+      使えないものを黙って隠すのではなく、確からしさを添えて渡すのが方針です
+    </li>
+    <li>
+      <strong>対応範囲の外で、それらしい答えを返さない。</strong>
+      祝日判定・営業日計算は <span class="fact" data-fact="supported">…</span>、
+      和暦変換は明治6年1月1日（1873-01-01）以降です。範囲外は例外になります。
+      <strong>営業日計算の途中で範囲を出た場合も同じ</strong>です（上の「2.」の最後のボタン）
+    </li>
+    <li>
+      <strong>企業・業界独自の休業日は持たない。</strong> カレンダーは
+      <code>national</code> と <code>bank</code> の2種だけです。
+      取引所や特定業界の休業日は、このライブラリの答えの上に呼び出し側が重ねてください
+    </li>
+    <li>
+      <strong>法的・金融的な確定情報としては保証しない。</strong>
+      MIT ライセンスの "AS IS" 提供です。このライブラリが保証しているのは
+      <strong>「確定していないものを確定と言わないこと」</strong>であって、
+      「答えが正しいこと」ではありません
+    </li>
+  </ul>
+</section>
+
+<section class="panel panel-note">
+  <h2>使う</h2>
+<pre class="install"><code>npm install japan-calendar@__JC_VERSION__</code></pre>
+<pre class="install"><code>import { isHoliday, addBusinessDays, toWareki, formatWareki } from "japan-calendar";
+
+isHoliday("2028-03-20");            // { name: "春分の日", confirmed: false, ... }
+addBusinessDays("2026-12-30", 1, "bank");  // { year: 2027, month: 1, day: 4 }
+formatWareki(toWareki("2019-05-01"));      // "令和元年5月1日"</code></pre>
+  <p class="panel-lead">
+    依存ゼロ。データは全部同梱で、実行時に外部へ取りに行きません。
+    Node 20+ / ブラウザ / Cloudflare Workers で動きます。
+  </p>
+</section>
+
+</main>
+
+<footer class="page-foot">
+  <h2>出典とライセンス</h2>
+  <p>
+    データ: 内閣府「国民の祝日について」
+    <a id="source-link" href="https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv" target="_blank" rel="noopener noreferrer">…</a>
+    （<a href="https://creativecommons.org/licenses/by/4.0/deed.ja" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>）。
+    同梱スナップショットは <span class="fact" data-fact="fetched">…</span> 取得、
+    覆う範囲は <span class="fact" data-fact="official-range">…</span>、
+    SHA-256 は <code class="sha" data-fact="sha">…</code> です。
+    帰属表示は <a href="./vendor/NOTICE.txt" target="_blank" rel="noopener">NOTICE</a> にあります。
+  </p>
+  <p>
+    公式データはライブラリの<strong>検証</strong>に使っていて、判定そのものは
+    祝日法とその改正をコードで実装したルールエンジンが行います。
+    データを並べるだけでは、覆っていない年で「祝日でない」と誤答するためです。
+  </p>
+  <p>
+    コードは <a href="./vendor/LICENSE.txt" target="_blank" rel="noopener">MIT</a> です。
+  </p>
+  <p class="foot-meta">
+    このページは npm 公開版 japan-calendar v__JC_VERSION__ を読み込んでいます。
+    ページのソースは <a href="https://github.com/tomatomerde/japan-calendar/tree/main/demo" target="_blank" rel="noopener noreferrer">リポジトリの demo/</a>。
+  </p>
+</footer>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
