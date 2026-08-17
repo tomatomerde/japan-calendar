@@ -10,12 +10,20 @@ it reaches its first published release.
 
 ### Added
 
-- A browser demo (`demo/`), deployed to GitHub Pages by
+- A browser demo, live at
+  <https://tomatomerde.github.io/japan-calendar/> and built from `demo/` by
   `.github/workflows/pages.yml`. It loads the **published** package from the
   registry at the version in `demo/pinned-version.txt`, so it can only show
   behaviour a visitor gets from `npm install`. Nothing is sent anywhere: the
   page runs entirely in the browser and counts its own network activity in
   view of the reader.
+
+### Changed
+
+- `homepage` now points at the demo rather than the README anchor. npm shows
+  this as the package's home link, and a page where the library can be run is
+  more use to someone deciding whether to install it than a second route to
+  the readme they are already reading. Takes effect on npm at the next publish.
 
 ### Documented
 
