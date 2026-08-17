@@ -314,12 +314,11 @@ cases are what decide whether they ship and what their defaults are.
   — the answer is checkable only if you re-derive it, and that re-derivation is
   easy to get wrong
 - [Handling out-of-range dates without throwing](https://github.com/tomatomerde/japan-calendar/issues/54)
-  — other libraries answer `false` past their range; this one refuses, which is
-  correct and still costs you a `try`
+  — other libraries answer `false` past their range; this one refuses, and that
+  difference costs the caller a `try`
 
-All of them would be **opt-in and off by default**. This library refuses an
-input it cannot interpret and flags a forecast as a forecast, and none of these
-change that.
+All of them would be **opt-in and off by default**. This library reports what it
+cannot determine instead of guessing at it, and none of these change that.
 
 New request? [Open one](https://github.com/tomatomerde/japan-calendar/issues/new?template=feature_request.yml)
 — bring the actual calls and the results you expect, that is the part that
