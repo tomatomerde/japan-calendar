@@ -297,6 +297,33 @@ Errors are the library's own exceptions, passed straight through as
 Deploying it is a maintainer/operator task — see
 [For maintainers](#for-maintainers) for the commands.
 
+## Roadmap
+
+### Under consideration
+
+Driven by what real calendar work actually needs, not by a feature list. Each
+of these is written up with the reasoning for why it was *not* done by
+default — **if one of them is what you need, say so on the issue.** Real use
+cases are what decide whether they ship and what their defaults are.
+
+- [An upper bound, or a forecast flag, on wareki conversion](https://github.com/tomatomerde/japan-calendar/issues/51)
+  — `toWareki('9999-12-31')` returns 令和7981年, and it looks as settled as 令和8年
+- [A copy-returning variant of `holidaysForYear`](https://github.com/tomatomerde/japan-calendar/issues/52)
+  — the freeze protects a shared cache, but `.sort()` fails in the caller's code
+- [Exposing which non-business days a calculation skipped](https://github.com/tomatomerde/japan-calendar/issues/53)
+  — the answer is checkable only if you re-derive it, and that re-derivation is
+  easy to get wrong
+- [Handling out-of-range dates without throwing](https://github.com/tomatomerde/japan-calendar/issues/54)
+  — other libraries answer `false` past their range; this one refuses, and that
+  difference costs the caller a `try`
+
+All of them would be **opt-in and off by default**. This library reports what it
+cannot determine instead of guessing at it, and none of these change that.
+
+New request? [Open one](https://github.com/tomatomerde/japan-calendar/issues/new?template=feature_request.yml)
+— bring the actual calls and the results you expect, that is the part that
+decides things.
+
 ## For maintainers
 
 The rest of this file is about working on the library rather than using it.

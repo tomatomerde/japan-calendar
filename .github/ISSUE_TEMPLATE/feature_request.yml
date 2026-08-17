@@ -1,0 +1,71 @@
+name: Feature request
+description: Something this library should do that it does not
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please write in English or Japanese — either is fine.
+
+        Before filing: several additions are already under consideration with
+        the reasoning written out — see the
+        [open enhancement issues](https://github.com/tomatomerde/japan-calendar/labels/enhancement).
+        If one of them is what you need, comment there instead. A comment
+        describing your actual use case is worth more than a new issue,
+        because what decides whether these ship is real use cases, not the
+        idea count.
+
+        Two things this library will not do, whatever the request. It will not
+        **guess**: an input it cannot interpret is refused rather than resolved
+        to a plausible day, and a date outside 1949-2099 raises rather than
+        answering `false`. And it will not present a **forecast as a fact**:
+        equinox dates past the Official Gazette's confirmed range come back
+        with `confirmed: false`, and no option will flatten that away. A
+        request framed as "just pick the likely one" will be declined — but
+        the same need framed as an opt-in option, off by default, is exactly
+        what those issues are.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: >
+        The task, not the API. "Show a customer when their order ships, given a
+        cutoff and bank holidays" tells us more than "add an option to
+        addBusinessDays", because it leaves room for the answer to be something
+        better than what you had in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: data
+    attributes:
+      label: What are the real inputs, and what should come back?
+      description: >
+        A handful of actual (or realistically shaped) calls and the result you
+        expect from each. This is the part that decides whether a proposal
+        ships and what its default is — a guess at what "people" need is not
+        usable, three real cases are. If a date only breaks near a boundary
+        (a year end, an era change, the edge of the supported range), say so:
+        those are where the answers get decided.
+      render: text
+      placeholder: |
+        addBusinessDays('2028-05-03', 1)  → also want the days it skipped
+        isHoliday('2100-01-01')           → want "out of range", not a throw
+        toWareki('2200-01-01')            → want it marked as a forecast
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What are you doing instead today?
+      description: >
+        If you already work around this — a try/catch, a spread before sorting,
+        your own loop over the calendar — say how. A request that a caller can
+        meet in three lines usually belongs in the README rather than in the
+        API, and knowing your workaround is how we tell those two apart. If the
+        workaround is subtly wrong in a way you found the hard way, that is the
+        strongest possible argument for doing something.
+    validations:
+      required: false

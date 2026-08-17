@@ -274,6 +274,31 @@ GET /v1/wareki/reverse?era=&year=&month=&day=
 デプロイはメンテナ／運用者の作業なので、コマンドは
 [メンテナ向け](#メンテナ向け)にある。
 
+## ロードマップ
+
+### 検討中
+
+機能一覧からではなく、実際の暦まわりの作業が要求するものから拾っている。
+いずれも**既定でやらなかった理由**まで書いてあるので、**必要ならイシューで
+そう言ってほしい**。実装するかどうかと既定値を決めるのは、実際の利用場面のほう。
+
+- [和暦変換の上限年、または予報であることの印](https://github.com/tomatomerde/japan-calendar/issues/51)
+  — `toWareki('9999-12-31')` は令和7981年を返し、令和8年と同じ顔をしている
+- [`holidaysForYear` がコピーを返す選択肢](https://github.com/tomatomerde/japan-calendar/issues/52)
+  — 凍結は共有キャッシュを守っているが、`.sort()` は呼び出し側で落ちる
+- [営業日計算が飛ばした非営業日を返す](https://github.com/tomatomerde/japan-calendar/issues/53)
+  — 答えを検算するには自分で導き直すしかなく、その導き直しを間違えやすい
+- [範囲外の日付を例外なしで扱う](https://github.com/tomatomerde/japan-calendar/issues/54)
+  — 他のライブラリは範囲外に `false` を返す。こちらは拒否する設計で、
+  その違いが呼び出し側に `try` を強いている
+
+いずれも**オプトインで既定はオフ**にする。決められないものは決めずに報告する、
+というこのライブラリの性質はどれでも変わらない。
+
+他にあれば
+[イシューを立ててほしい](https://github.com/tomatomerde/japan-calendar/issues/new?template=feature_request.yml)。
+**実際の呼び出しと期待する結果**を添えてもらえると、それが判断材料になる。
+
 ## メンテナ向け
 
 ここから下はライブラリを「使う」話ではなく「触る」話。コントリビュートは
