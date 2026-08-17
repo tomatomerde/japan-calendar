@@ -150,6 +150,23 @@ fromWareki('令和', 1, 5, 1);
 両カレンダーとも土日は非営業日。`addBusinessDays(date, 0)` は `date` 自身が
 非営業日でも補正せずそのまま返す。
 
+### 祝日リストは凍結されている
+
+`holidaysForYear` と `statutoryHolidaysForYear` は結果をメモ化し、
+**同じ凍結済み配列**をすべての呼び出し元へ返す（各 `Holiday` と
+その `date` も凍結済み）。その場でソートしたり書き換えたりすると、
+strict モード（ES モジュールは常に strict）では `TypeError` になる。
+
+```ts
+holidaysForYear(2026).sort(byWhatever);   // ✗ TypeError（凍結されている）
+[...holidaysForYear(2026)].sort(byWhatever);  // ✓ コピーしてから
+```
+
+この凍結は飾りではない。無ければ呼び出し元の `.sort()` がキャッシュ本体を
+並べ替えてしまい、以降のプロセス全体——Cloudflare Workers では同じ
+isolate を共有する後続リクエスト全部——で、`isHoliday` が他人に
+並べ替えられたデータから答えることになる。
+
 ### 受け付ける日付入力
 
 日付を受け取る関数はいずれも次の3形式を受け付ける。

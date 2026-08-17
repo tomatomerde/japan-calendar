@@ -7,8 +7,8 @@
 （積むと再開時に「で、何をすればいいのか」が埋もれる）。
 恒久的な設計判断は `CONTRIBUTING.md`。
 
-最終更新: 2026-08-13（公開後の詳細レビューと、その修正の `0.1.2` リリースまで完了。
-下の「公開後レビューの結果」参照）
+最終更新: 2026-08-17（ブラウザデモを追加。Pages の有効化が人間待ちで残っている——
+「3. 人間の操作待ち」参照）
 
 **npm 公開済み**: `japan-calendar@0.1.2`（provenance attestation 付き・`latest`）。
 
@@ -117,6 +117,18 @@ CSV が1バイトも変わっていなくても必ず「差分あり」になり
 - **`can_approve_pull_request_reviews` を有効にするかの判断。** オンにすれば
   `update-holidays.yml` の PR が自動で立つ。オフのままでも warning に degrade するので
   急ぎではない
+- **GitHub Pages の有効化。** Settings → Pages → Source を「GitHub Actions」にする。
+  **これだけは自動化の余地が無い**——サイトの作成には admin 権限が要り、`GITHUB_TOKEN` は
+  持たないので `actions/configure-pages@v6`（`enablement: true`）は
+  `Resource not accessible by integration` で落ちる。落ちる位置は build と検証の**後**なので、
+  「デモが壊れている」とは区別が付く。有効化後は `Demo (GitHub Pages)` を
+  `workflow_dispatch` で1回叩けばデプロイまで通る（**この dispatch はセッションから叩ける**）
+- **公開後、ページを1回開いて見る。** 作業環境の egress ポリシーは
+  `tomatomerde.github.io` を遮断しているので、**セッションからは確認できない**。
+  deploy が緑なのは「配った」までで「見えている」ではない
+- **そのあと**: README（英日）にデモへのリンク、`package.json` の `homepage` を
+  デモ URL に、リポジトリの Website 欄。**URL が生きたことを確認する前に張らない**
+  （死んだリンクを公開することになる）
 
 （マージ済みブランチの掃除は完了済み。2026-08-12 の実確認でリモートは `main` と
 `chore/update-holiday-data` のみで、マージ後のブランチ自動削除も効いている）
@@ -149,7 +161,11 @@ CSV が1バイトも変わっていなくても必ず「差分あり」になり
   （「振替休日」への元祝日名の前置、「国民の休日」vs 法律用語の「休日」等）。
   真に未カバーで残るのは 1949–1954（独立ソースが存在しない・既知）と 2051–2099
   （近似式の外挿のみ）
-- **ブラウザ／バンドラでの取り込み**。`@arethetypeswrong/cli` による静的な解決チェックのみ
+- ~~**ブラウザ／バンドラでの取り込み**~~ → **2026-08-17 に実施済み**。公開版 0.1.2 の
+  tarball を esbuild でバンドル（gzip 12KB）し、Chromium 141 で実行。API 57 項目を
+  Node と突き合わせて全件一致。TZ を Asia/Tokyo / America/Chicago / Pacific/Kiritimati に
+  変えても、暦の日付（文字列・オブジェクト）の答えは不変であることを確認した。
+  以後は `scripts/verify-demo.mjs` が CI で毎回この検査を回す
 - **provenance 署名の暗号的な検証**（`npm audit signatures`）。開発環境のプロキシが鍵の
   取得を遮断するため実行できなかった。**attestation と署名が「存在すること」は
   `npm view japan-calendar@0.1.2 dist` で確認済み**だが、それは検証ではない。
@@ -180,6 +196,7 @@ CSV が1バイトも変わっていなくても必ず「差分あり」になり
 | `scripts/` | fetch/report とも変異検出。退行ガードあり |
 | `worker/index.ts` | 全ルートを共通契約＋個別ペイロードで検証。敵対的入力11種も固定。**2026-08-11 に workerd 実機でも確認** |
 | パッケージング | `@arethetypeswrong/cli` 4項目green。Node 20 実機（20.19.0）でtarballを install し `require()`/`import` 両方通過 |
+| `demo/` + `scripts/verify-demo.mjs` | Chromium で3タイムゾーンから実行して検証。検査に対する変異9種すべて検出 |
 | CI / ワークフロー | pipefail 修正済み。Node 20 消費者ジョブあり。`actions/checkout@v7` の資格情報で後続ステップの `git push` が通ることを Actions 上で実証済み |
 
 ## 運用メモ
