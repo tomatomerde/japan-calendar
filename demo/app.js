@@ -236,7 +236,7 @@ const PRESET_BUSINESS = [
   {
     label: "さかのぼる 2028-05-08 −3",
     value: { from: "2028-05-08", n: -3 },
-    note: "負の数で過去方向。昭和の日と土日を遡って飛ばす",
+    note: "負の数で過去方向。ゴールデンウィークの祝日と土日を遡って飛ばす",
   },
   {
     label: "範囲の外へ出る 2099-12-30 +3",
@@ -326,14 +326,32 @@ function renderBusiness(lib, from, n, calendar, out) {
 
   const between = el("p", "aside");
   between.append(el("span", "kv-key", "businessDaysBetween"));
+  const spanned = lib.businessDaysBetween(fromDate, result, calendar);
   between.append(
     el(
       "span",
       "kv-value",
       `${lib.toIsoDate(fromDate)} → ${lib.toIsoDate(result)} は ` +
-        `${lib.businessDaysBetween(fromDate, result, calendar)} 営業日（終端を含まない半開区間）`,
+        `${spanned} 営業日（終端を含まない半開区間）`,
     ),
   );
+  // These two numbers disagree when the start date is not itself a business
+  // day, and the disagreement looks like a contradiction sitting right under
+  // the headline answer: 2028-05-03 (憲法記念日) +1 lands on 5/8, while the
+  // interval [5/3, 5/8) holds zero business days. Both are right — the interval
+  // counts the start, addBusinessDays steps past it — but "終端を含まない" only
+  // explains the far end, so the near end gets said out loud when it bites.
+  if (spanned !== Math.abs(n)) {
+    between.append(
+      el(
+        "span",
+        "kv-note",
+        `起点の ${lib.toIsoDate(fromDate)} 自体が非営業日なので、この数は上の ` +
+          `${Math.abs(n)} と一致しません。半開区間は起点を数に入れ、addBusinessDays は ` +
+          `起点の翌日から数え始めます`,
+      ),
+    );
+  }
   out.append(between);
 
   // Both calendars, always. The difference between them is the whole reason
