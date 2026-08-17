@@ -86,8 +86,13 @@ function confirmedBadge(lib, holiday) {
   const provisional = !holiday.confirmed;
   const badge = el("span", provisional ? "badge badge-provisional" : "badge badge-confirmed");
   badge.textContent = provisional ? "暫定" : "確定";
+  // Named for what it actually measures. `equinoxConfirmedThrough` is the last
+  // year whose equinox dates have been gazetted, which is not the same quantity
+  // as `lastYear` (the official CSV's final row) even though the two happen to
+  // be equal right now — so calling this range "公式データ" would be a label
+  // that stops being true the first time they diverge.
   badge.title = provisional
-    ? `confirmed: false — 公式データ（${lib.OFFICIAL_META.firstYear}〜${lib.OFFICIAL_META.equinoxConfirmedThrough}年）の外側なので、計算による予測値です`
+    ? `confirmed: false — 春分・秋分が確定しているのは ${lib.OFFICIAL_META.equinoxConfirmedThrough} 年までで、その先は計算による予測値です`
     : "confirmed: true — 内閣府の公式データと突き合わせ済み";
   return badge;
 }
@@ -221,17 +226,17 @@ const PRESET_BUSINESS = [
   {
     label: "ゴールデンウィーク 2028-05-01 +3",
     value: { from: "2028-05-01", n: 3 },
-    note: "5/3〜5/5 を飛ばす。祝日が平日に固まる年ほど差が出る",
+    note: "憲法記念日・みどりの日・こどもの日と、続く土日をまとめて飛ばす",
   },
   {
     label: "暫定の祝日をまたぐ 2029-09-21 +2",
     value: { from: "2029-09-21", n: 2 },
-    note: "秋分の日とその振替休日（どちらも暫定）を飛ばした結果",
+    note: "秋分の日と、その振替休日（どちらも暫定）を飛ばす",
   },
   {
     label: "さかのぼる 2028-05-08 −3",
     value: { from: "2028-05-08", n: -3 },
-    note: "負の数で過去方向。0 を渡すと起点をそのまま返す",
+    note: "負の数で過去方向。昭和の日と土日を遡って飛ばす",
   },
   {
     label: "範囲の外へ出る 2099-12-30 +3",
@@ -260,10 +265,18 @@ function renderBusiness(lib, from, n, calendar, out) {
 
   // Show the days that were skipped and why: the answer alone is not
   // checkable, and this library's argument is that its answer *is* checkable.
+  //
+  // The **open** interval, not the closed one. addBusinessDays never evaluates
+  // the start date — it steps first, then tests — so a non-business 起点 was
+  // never "skipped" by the calculation, and the far end is a business day by
+  // construction. Counting the endpoints made 2028-05-03 (a holiday) +1 report
+  // five skipped days instead of four, and n=0 report one skipped day for a
+  // calculation that moved nowhere. Both numbers were wrong in the direction
+  // that makes the page look like it is checking its own answer when it is not.
   const lo = Math.min(lib.toDays(fromDate), lib.toDays(result));
   const hi = Math.max(lib.toDays(fromDate), lib.toDays(result));
   const skipped = [];
-  for (let d = lo; d <= hi; d += 1) {
+  for (let d = lo + 1; d < hi; d += 1) {
     const c = lib.civilFromDays(d);
     if (lib.isBusinessDay(c, calendar)) continue;
     const h = lib.isHoliday(c);
@@ -330,12 +343,15 @@ function renderBusiness(lib, from, n, calendar, out) {
   const compare = el("div", "compare");
   compare.append(el("h3", "case-group", "national と bank の差"));
   const rows = el("ul", "cases");
+  const answers = {};
   for (const kind of ["national", "bank"]) {
     const li = el("li", "case");
     li.append(el("code", "case-expr", `addBusinessDays("${lib.toIsoDate(fromDate)}", ${n}, "${kind}")`));
     let text;
     try {
-      text = lib.toIsoDate(lib.addBusinessDays(fromDate, n, kind));
+      const value = lib.addBusinessDays(fromDate, n, kind);
+      answers[kind] = value;
+      text = lib.toIsoDate(value);
     } catch (err) {
       const { name, message } = errorParts(err);
       text = `${name}: ${message}`;
@@ -345,12 +361,25 @@ function renderBusiness(lib, from, n, calendar, out) {
     rows.append(li);
   }
   compare.append(rows);
+
+  // Measured for the dates actually on screen, not a remembered worst case. A
+  // sentence saying "3営業日ずれます" sat directly above a preset whose own gap
+  // is one day — the kind of stale figure this page exists to argue against.
+  let gapText = "この起点では、どちらのカレンダーでも同じ答えになります。";
+  if (answers.national !== undefined && answers.bank !== undefined) {
+    const gap = Math.abs(lib.toDays(answers.bank) - lib.toDays(answers.national));
+    if (gap > 0) {
+      gapText =
+        `この起点では暦日で ${gap} 日ずれます（${lib.toIsoDate(answers.national)} と ` +
+        `${lib.toIsoDate(answers.bank)}）。支払日を扱うなら、どちらのカレンダーで` +
+        `数えているかを決めておく必要があります。`;
+    }
+  }
   compare.append(
     el(
       "p",
       "panel-lead",
-      "同じ結果になる期間のほうが多く、差が出るのは年末年始をまたぐときだけです。" +
-        "そこを外すと支払日が3営業日ずれます。",
+      "同じ結果になる期間のほうが多く、差が出るのは年末年始をまたぐときだけです。" + gapText,
     ),
   );
   out.append(compare);

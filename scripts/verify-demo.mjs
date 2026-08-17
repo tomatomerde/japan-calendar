@@ -190,6 +190,51 @@ try {
     "the data source should be an https URL",
   );
 
+  /* 7b. The one preset caption that states a concrete date must actually
+   *     produce it. "bank は 12/31〜1/3 を飛ばして 1/4" is a measured claim
+   *     printed on the page, and a caption nobody re-measures is how a page
+   *     starts quietly disagreeing with the library it is demonstrating. */
+  await page.locator(".preset", { hasText: "年末年始" }).first().click();
+  await page.locator('input[name="calendar"][value="bank"]').check();
+  await page.waitForSelector("#biz-output .verdict");
+  assert.match(
+    (await page.locator("#biz-output .verdict .verdict-name").first().textContent()).trim(),
+    /^2027-01-04/,
+    "the year-end preset's caption promises 1/4 on the bank calendar",
+  );
+  await page.locator('input[name="calendar"][value="national"]').check();
+  await page.waitForSelector("#biz-output .verdict");
+  assert.match(
+    (await page.locator("#biz-output .verdict .verdict-name").first().textContent()).trim(),
+    /^2026-12-31/,
+    "the same caption promises 12/31 is a business day on the national calendar",
+  );
+
+  /* 7c. The skipped-day list is offered as the way to check the answer, so it
+   *     has to be checkable itself. Counts derived by hand, not read off the
+   *     page: 2028-05-03 is 憲法記念日 (Wed); +1 business day lands on Mon 5/8;
+   *     the days actually stepped over are 5/4, 5/5, 5/6, 5/7 — four. The start
+   *     date is not among them, because addBusinessDays steps before it tests
+   *     and so never evaluates 5/3 at all. Walking the closed interval reported
+   *     five, and reported one for n=0, which moves nowhere. */
+  const skippedCount = async (from, n) => {
+    await page.evaluate(
+      ([f, x]) => {
+        const a = document.getElementById("biz-from");
+        const b = document.getElementById("biz-n");
+        a.value = f;
+        b.value = x;
+        a.dispatchEvent(new Event("input", { bubbles: true }));
+      },
+      [from, String(n)],
+    );
+    await page.waitForSelector("#biz-output .verdict");
+    return page.locator("#biz-output .holiday-list > li").count();
+  };
+  assert.equal(await skippedCount("2028-05-03", 1), 4, "2028-05-03 +1 skips 5/4-5/7, not the start date itself");
+  assert.equal(await skippedCount("2028-05-03", 0), 0, "n=0 moves nowhere, so nothing was skipped");
+  assert.equal(await skippedCount("2028-05-03", -1), 0, "2028-05-02 is a business day, so nothing was skipped");
+
   /* 8. Zero requests from here on. Start listening only now: the bundle load
    *    above is a request, and it is the one the page tells visitors about. */
   const afterReady = [];
