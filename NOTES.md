@@ -7,8 +7,8 @@
 （積むと再開時に「で、何をすればいいのか」が埋もれる）。
 恒久的な設計判断は `CONTRIBUTING.md`。
 
-最終更新: 2026-08-17（ブラウザデモを追加。Pages の有効化が人間待ちで残っている——
-「3. 人間の操作待ち」参照）
+最終更新: 2026-08-17（ブラウザデモを追加し、GitHub Pages で公開した。
+<https://tomatomerde.github.io/japan-calendar/>。残る人間待ちは Website 欄だけ）
 
 **npm 公開済み**: `japan-calendar@0.1.2`（provenance attestation 付き・`latest`）。
 
@@ -117,18 +117,17 @@ CSV が1バイトも変わっていなくても必ず「差分あり」になり
 - **`can_approve_pull_request_reviews` を有効にするかの判断。** オンにすれば
   `update-holidays.yml` の PR が自動で立つ。オフのままでも warning に degrade するので
   急ぎではない
-- **GitHub Pages の有効化。** Settings → Pages → Source を「GitHub Actions」にする。
-  **これだけは自動化の余地が無い**——サイトの作成には admin 権限が要り、`GITHUB_TOKEN` は
-  持たないので `actions/configure-pages@v6`（`enablement: true`）は
-  `Resource not accessible by integration` で落ちる。落ちる位置は build と検証の**後**なので、
-  「デモが壊れている」とは区別が付く。有効化後は `Demo (GitHub Pages)` を
-  `workflow_dispatch` で1回叩けばデプロイまで通る（**この dispatch はセッションから叩ける**）
-- **公開後、ページを1回開いて見る。** 作業環境の egress ポリシーは
-  `tomatomerde.github.io` を遮断しているので、**セッションからは確認できない**。
-  deploy が緑なのは「配った」までで「見えている」ではない
-- **そのあと**: README（英日）にデモへのリンク、`package.json` の `homepage` を
-  デモ URL に、リポジトリの Website 欄。**URL が生きたことを確認する前に張らない**
-  （死んだリンクを公開することになる）
+- **リポジトリの Website 欄。** URL 欄の下の **「Use your GitHub Pages website」に
+  チェック**を入れる（手で URL を打つより良い——Pages の URL に追従するので、独自ドメインを
+  当てた日に古い URL が残らない）。API 経由では設定できない。`package.json` の `homepage` と
+  README（英日）のリンクは設定済み
+
+（**GitHub Pages の有効化は 2026-08-17 に完了**。
+<https://tomatomerde.github.io/japan-calendar/> に配信中。有効化そのものには自動化の
+余地が無く、admin 権限が要るので `actions/configure-pages@v6` は
+`Resource not accessible by integration` で落ちるが、**そのあとの `workflow_dispatch` は
+セッションから叩けた**——run `31995154388` で build・deploy とも緑。落ちる位置が build と
+検証の後なので、「デモが壊れている」とは区別が付く設計になっている）
 
 （マージ済みブランチの掃除は完了済み。2026-08-12 の実確認でリモートは `main` と
 `chore/update-holiday-data` のみで、マージ後のブランチ自動削除も効いている）
@@ -165,7 +164,13 @@ CSV が1バイトも変わっていなくても必ず「差分あり」になり
   tarball を esbuild でバンドル（gzip 12KB）し、Chromium 141 で実行。API 57 項目を
   Node と突き合わせて全件一致。TZ を Asia/Tokyo / America/Chicago / Pacific/Kiritimati に
   変えても、暦の日付（文字列・オブジェクト）の答えは不変であることを確認した。
-  以後は `scripts/verify-demo.mjs` が CI で毎回この検査を回す
+  以後は `scripts/verify-demo.mjs` が CI で毎回この検査を回す。
+  **公開後に本番の実物とも突き合わせ済み**——`tomatomerde.github.io` から取得した6ファイルが
+  手元のビルドとバイト一致し、そのバイト列を Chromium で3タイムゾーンから動かして全チェック
+  通過。`.txt` が `text/plain` で返る（ダウンロード扱いにならない）ことも実測した。
+  **なお `tomatomerde.github.io` は現在この環境から到達できる**（`curl` で 200）。
+  ただし Chromium 経由は `ERR_CONNECTION_RESET` になるので、ブラウザで動かすときは
+  取得したバイト列をローカルに配る必要がある
 - **provenance 署名の暗号的な検証**（`npm audit signatures`）。開発環境のプロキシが鍵の
   取得を遮断するため実行できなかった。**attestation と署名が「存在すること」は
   `npm view japan-calendar@0.1.2 dist` で確認済み**だが、それは検証ではない。

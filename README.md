@@ -6,6 +6,7 @@
 [![Bundled data: CC BY 4.0](https://img.shields.io/badge/bundled%20data-CC%20BY%204.0-blue.svg)](./NOTICE)
 [![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-brightgreen.svg)](#install)
 [![dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen.svg)](./package.json)
+[![Live demo](https://img.shields.io/badge/demo-live-1c5d99.svg)](https://tomatomerde.github.io/japan-calendar/)
 
 **English** | [日本語](./README.ja.md)
 
@@ -21,6 +22,15 @@ the only one that **flags Vernal/Autumnal Equinox Day as `confirmed: true`
 or `false`** — those two holidays aren't legally fixed until the Official
 Gazette publishes the following year's "Calendrical Data" each February,
 so any date beyond that is inherently a forecast, not a fact.
+
+**[Try it in your browser](https://tomatomerde.github.io/japan-calendar/)** —
+the demo runs the published package client-side, so the claims above are
+checkable rather than asserted. It defaults to a date *outside* the official
+data's range so the `confirmed: false` badge is visible without typing, and it
+runs every common date format in front of you to show which ones are refused
+and why. The timezone section computes its answers in your own browser, in
+your own timezone: for a holiday library, being off by one day is not a crash
+but a different answer, and that is the failure worth seeing for yourself.
 
 ## Install
 

@@ -6,6 +6,7 @@
 [![Bundled data: CC BY 4.0](https://img.shields.io/badge/bundled%20data-CC%20BY%204.0-blue.svg)](./NOTICE)
 [![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-brightgreen.svg)](#インストール)
 [![dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen.svg)](./package.json)
+[![Live demo](https://img.shields.io/badge/demo-live-1c5d99.svg)](https://tomatomerde.github.io/japan-calendar/)
 
 [English](./README.md) | **日本語**
 
@@ -19,6 +20,15 @@ npm パッケージとして配布し、加えて Cloudflare Workers 上の HTTP
 一次機能として持ち**、さらに**春分の日・秋分の日には `confirmed: true/false`
 のフラグを付与する**（前年2月の官報「暦要項」で正式決定されるまでは暫定値である
 ことを明示する）。
+
+**[ブラウザで試す](https://tomatomerde.github.io/japan-calendar/)** —
+デモは npm 公開版をブラウザ内で動かしているので、上の主張を読むだけでなく
+その場で確かめられる。初期値は公式データの範囲**外**の日付にしてあり、何も
+打たなくても `confirmed: false` のバッジが見える。ありがちな日付の書き方を
+片っ端から実行して、どれが拒否されるか・なぜかも並べてある。タイムゾーンの節は
+**訪問者自身のブラウザ・訪問者自身のタイムゾーン**で計算する——祝日ライブラリに
+とって1日のずれは異常終了ではなく「違う答え」であり、それは自分の環境で
+見るのがいちばん早い。
 
 ## インストール
 
