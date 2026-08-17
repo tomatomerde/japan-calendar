@@ -26,8 +26,22 @@ if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
   exit 1
 fi
 
-work="$(mktemp -d)"
+# A fixed path under demo/, not mktemp -d.
+#
+# esbuild writes each module's path — relative to the output file — into the
+# bundle as a comment, so a temp directory ends up baked into what gets
+# published: the first deployed bundle carried 22 lines naming
+# `/tmp/tmp.elSrzUwrDZ/...`. Two things follow, and the second is the one that
+# matters. It leaks the build machine's scratch path into a public artifact,
+# and it makes the build irreproducible — rebuilding here produced a bundle
+# that differed from the deployed one in exactly those 22 comment lines, so
+# "is the published page running the bytes I think it is?" could not be
+# answered by comparing hashes. Anchoring the extract directory inside the
+# repository makes those paths constant, and the answer becomes a diff.
+work="$here/_work"
+rm -rf "$work"
 trap 'rm -rf "$work"' EXIT
+mkdir -p "$work"
 
 echo "fetching japan-calendar@$version from the registry"
 # npm pack does not create its destination directory (npm/cli#4351), and a
@@ -79,6 +93,28 @@ mkdir -p "$out/vendor"
 bundle="$out/vendor/japan-calendar.js"
 if [ ! -s "$bundle" ]; then
   echo "esbuild produced no bundle at $bundle" >&2
+  exit 1
+fi
+
+# Every module comment esbuild emits must name a path inside the repository.
+#
+# The check is written against what the failure actually looks like, not what
+# it sounds like. Reverting to `mktemp -d` does not produce an absolute path in
+# the bundle — esbuild makes it relative to the output file, so it comes out as
+# `// ../../../tmp/tmp.XXXX/...`. A guard matching only `^// /` therefore passed
+# straight through the very regression it was added for; this one was caught by
+# re-introducing the bug and watching the guard stay quiet.
+#
+# Counted into a variable rather than piped into `grep -q`: under
+# `set -o pipefail` an early-exiting reader kills the writer with SIGPIPE and
+# fails the pipeline exactly when the pattern matches. The `|| true` is for
+# grep's exit status 1 on zero matches, which is the good case.
+escaping="$(grep -c -E '^// (\.\./|/)' "$bundle" || true)"
+if [ "$escaping" != "0" ]; then
+  echo "the bundle names $escaping module path(s) outside the repository:" >&2
+  grep -m 3 -E '^// (\.\./|/)' "$bundle" >&2 || true
+  echo "the extract directory must stay inside the repository, so these stay stable" >&2
+  echo "(otherwise the published bundle is irreproducible and leaks the build path)" >&2
   exit 1
 fi
 
