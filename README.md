@@ -167,6 +167,23 @@ non-business on both calendars as New Year's Day). Weekends are
 non-business days on both calendars. `addBusinessDays(date, 0)` returns
 `date` unchanged even if it isn't itself a business day.
 
+### Holiday lists are frozen
+
+`holidaysForYear` and `statutoryHolidaysForYear` memoize their result and
+hand **the same frozen array** to every caller, holidays and their `date`
+objects included. Sorting or otherwise mutating it in place throws a
+`TypeError` in strict mode (which ES modules always are):
+
+```ts
+holidaysForYear(2026).sort(byWhatever);   // ✗ TypeError — frozen
+[...holidaysForYear(2026)].sort(byWhatever);  // ✓ copy first
+```
+
+The freeze is not decoration. Without it a caller's in-place `.sort()`
+rewrites the cached list for the rest of the process — and on Cloudflare
+Workers, for every later request sharing the isolate — so a later
+`isHoliday` would answer from data someone else reordered.
+
 ### Accepted date input
 
 Every function that takes a date accepts three forms:

@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/) once
 it reaches its first published release.
 
+## [Unreleased]
+
+### Added
+
+- A browser demo (`demo/`), deployed to GitHub Pages by
+  `.github/workflows/pages.yml`. It loads the **published** package from the
+  registry at the version in `demo/pinned-version.txt`, so it can only show
+  behaviour a visitor gets from `npm install`. Nothing is sent anywhere: the
+  page runs entirely in the browser and counts its own network activity in
+  view of the reader.
+
+### Documented
+
+- `holidaysForYear` and `statutoryHolidaysForYear` return a **frozen** array,
+  so an in-place `.sort()` throws a `TypeError`. The freeze has been there
+  since 0.1.0 and is deliberate — the memoized list is shared process-wide, so
+  mutating it would corrupt later answers — but only `CONTRIBUTING.md` said so,
+  and callers do not read that. Both READMEs now show the copy-first form.
+
 ## [0.1.2] - 2026-08-12
 
 ### Fixed
