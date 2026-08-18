@@ -35,6 +35,47 @@ function resolveExecutablePath() {
   return undefined;
 }
 
+/**
+ * Asserts that an annotation on a sample line agrees with what the bundle
+ * returned for that line.
+ *
+ * Matched as a *subset*, not for equality. The annotations elide with `...`
+ * on purpose — `{ name: "春分の日", confirmed: false, ... }` is what makes the
+ * block readable, and spelling out every field to satisfy a check would make
+ * the page worse. So the elision marker is dropped and every key the
+ * annotation does write has to be present in the real value and equal to it.
+ * A key the annotation invents fails the same way a wrong value does, because
+ * the real value simply has no such key.
+ */
+function assertClaimed(expr, claimed, actual) {
+  // `...` (or `…`) as the last entry of an object or array means "and more
+  // fields"; anywhere else it is not something this can read, and the
+  // Function below will say so.
+  const literal = claimed.replace(/,\s*(?:\.\.\.|…)\s*(?=[}\]])/gu, "");
+  let expected;
+  try {
+    expected = new Function(`return (${literal});`)();
+  } catch (e) {
+    assert.fail(`the annotation on \`${expr}\` is not a value: ${claimed} — ${e.message}`);
+  }
+  const walk = (want, got, at) => {
+    if (want !== null && typeof want === "object") {
+      assert.ok(
+        got !== null && typeof got === "object",
+        `the sample claims \`${expr}\`${at} is ${JSON.stringify(want)}, but it is ${JSON.stringify(got)}`,
+      );
+      for (const key of Object.keys(want)) walk(want[key], got[key], `${at}.${key}`);
+      return;
+    }
+    assert.deepEqual(
+      got,
+      want,
+      `the sample claims \`${expr}\`${at} is ${JSON.stringify(want)}, but it is ${JSON.stringify(got)}`,
+    );
+  };
+  walk(expected, actual, "");
+}
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SITE = path.join(root, "demo/_site");
 const PINNED = (await readFile(path.join(root, "demo/pinned-version.txt"), "utf8")).trim();
@@ -234,6 +275,40 @@ try {
   assert.equal(await skippedCount("2028-05-03", 1), 4, "2028-05-03 +1 skips 5/4-5/7, not the start date itself");
   assert.equal(await skippedCount("2028-05-03", 0), 0, "n=0 moves nowhere, so nothing was skipped");
   assert.equal(await skippedCount("2028-05-03", -1), 0, "2028-05-02 is a business day, so nothing was skipped");
+
+  /* 7d. The copy-pasteable sample block says what the loaded bundle returns.
+   *
+   *     This is the one part of the page a visitor runs instead of reading,
+   *     and it is the part nothing else on the page touches, so it drifts in
+   *     silence: the sibling project's sample kept its 0.1.x output through
+   *     the release whose entire reason for existing was changing that
+   *     output, on a page whose own prose described the new behaviour.
+   *     Evaluating the lines against the bundle the page actually loaded is
+   *     the only thing that notices.
+   */
+  const samples = await page.evaluate(async () => {
+    const lib = await import("./vendor/japan-calendar.js");
+    const out = [];
+    for (const block of document.querySelectorAll("pre.install code")) {
+      for (const line of block.textContent.split("\n")) {
+        // `expression;  // claimed value`
+        const m = line.match(/^(\S.*?);\s*\/\/\s*(.+?)\s*$/);
+        if (!m) continue;
+        const [, expr, claimed] = m;
+        out.push({ expr, claimed, actual: new Function("lib", `with (lib) { return (${expr}); }`)(lib) });
+      }
+    }
+    return out;
+  });
+  // An exact count, not a floor. Every way this check can quietly stop
+  // checking — a line reworded past the pattern, the block replaced, the
+  // annotations dropped — shows up here as a number rather than as a pass.
+  assert.equal(
+    samples.length,
+    3,
+    `expected 3 annotated lines in the sample block, evaluated ${samples.length}: ${JSON.stringify(samples.map((s) => s.expr))}`,
+  );
+  for (const { expr, claimed, actual } of samples) assertClaimed(expr, claimed, actual);
 
   /* 8. Zero requests from here on. Start listening only now: the bundle load
    *    above is a request, and it is the one the page tells visitors about. */
