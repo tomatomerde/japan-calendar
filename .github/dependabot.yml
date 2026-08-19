@@ -33,3 +33,16 @@ updates:
     ignore:
       - dependency-name: '*'
         update-types: [version-update:semver-major]
+      # The comparison targets of test/alternatives.test.ts, frozen on
+      # purpose. They are not dependencies of anything that ships; they are
+      # the other half of a measurement, and a measurement whose baseline
+      # moves on a schedule is not one. When one of them changes behaviour
+      # the right response is to re-read the README section it backs, which
+      # is a documentation task to pick up deliberately -- not a red pull
+      # request arriving on the first of the month.
+      - dependency-name: 'japanese-holidays'
+      - dependency-name: '@types/japanese-holidays'
+      - dependency-name: '@holiday-jp/holiday_jp'
+      - dependency-name: 'date-holidays'
+      - dependency-name: '@gahojin-inc/holiday-japanese'
+      - dependency-name: '@smarthr/wareki'

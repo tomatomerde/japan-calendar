@@ -27,6 +27,15 @@ it reaches its first published release.
 
 ### Documented
 
+- Both READMEs now name the five npm packages a reader would weigh this one
+  against, and say where each stops — near the top, before the API list,
+  because "is there already something that does this" is the question a reader
+  answers first. The comparison is re-measured in CI
+  (`test/alternatives.test.ts`) against exact pinned versions rather than
+  quoted, and it replaced an unsourced superlative ("it's the only one that
+  flags the equinox"). The measurement also turned up something the old
+  sentence missed: two of the four hold no data past 2050 and report New
+  Year's Day 2051 as simply not a holiday.
 - `holidaysForYear` and `statutoryHolidaysForYear` return a **frozen** array,
   so an in-place `.sort()` throws a `TypeError`. The freeze has been there
   since 0.1.0 and is deliberate — the memoized list is shared process-wide, so
