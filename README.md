@@ -86,9 +86,9 @@ that year" from a `false`. This package answers through 2099 and refuses past it
 holiday library the dangerous answer is not an error, it is a confident `false`.
 
 That is also the honest answer to "can't I just write the business-day loop myself?" You can — it
-is about a dozen lines on top of any of these, and while every library involved has data for the
-year you are counting through, it gives the same answers this package does. It stops giving the
-same answers where the underlying data stops. `2050-12-30` plus three business days is
+is about a dozen lines on top of any of these, and as long as the library underneath has data for
+the span you are counting through, it gives the same answers this package does. It stops agreeing
+where that data stops. `2050-12-30` plus three business days is
 `2051-01-05`, because 12/31 is a Saturday, 1/1 is New Year's Day, and 1/2 is its substitute
 holiday; a loop built on a library whose data ends in 2050 counts those last two as working days
 and lands on `2051-01-04`.
