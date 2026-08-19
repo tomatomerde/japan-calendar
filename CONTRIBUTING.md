@@ -233,6 +233,14 @@ each time and any manual edit will be silently overwritten.
   closed-form rather than degrading to a day-by-day scan. This is the
   only test that catches that regression, since the naive path returns
   the same answers, just slowly.
+- `test/alternatives.test.ts` — The comparison the READMEs open with,
+  against five npm packages pinned to exact versions. It is the only
+  test here that asserts things about *other* people's code: what those
+  packages export, and what they answer for the 2050 equinox and for a
+  date that predates the 1873 calendar reform. Both READMEs are grepped
+  for each package name, so a row cannot go stale on one side alone.
+  Raising a pin is a documentation change: re-run this file and update
+  whatever it reports.
 
 ## Pull requests
 

@@ -15,13 +15,15 @@ arithmetic, and wareki (Japanese era) date conversion — shipped as an npm
 package, and usable as an HTTP API you deploy yourself on Cloudflare Workers
 (there is no hosted endpoint; see [Cloudflare Workers](#cloudflare-workers)).
 
-Most free holiday libraries only answer "is this a holiday?". This one
-also treats **business-day arithmetic as a first-class feature**
-(`isBusinessDay` / `addBusinessDays` / `businessDaysBetween`), and it's
-the only one that **flags Vernal/Autumnal Equinox Day as `confirmed: true`
-or `false`** — those two holidays aren't legally fixed until the Official
-Gazette publishes the following year's "Calendrical Data" each February,
-so any date beyond that is inherently a forecast, not a fact.
+The four holiday packages npm surfaces ahead of this one answer "is this a
+holiday?" and stop there. This one also treats **business-day arithmetic as a
+first-class feature** (`isBusinessDay` / `addBusinessDays` /
+`businessDaysBetween`), and it **flags Vernal/Autumnal Equinox Day as
+`confirmed: true` or `false`** — those two holidays aren't legally fixed until
+the Official Gazette publishes the following year's "Calendrical Data" each
+February, so any date beyond that is inherently a forecast, not a fact. None of
+the four draws that distinction; the next section names them and shows what
+each returns.
 
 **[Try it in your browser](https://tomatomerde.github.io/japan-calendar/)** —
 the demo runs the published package client-side, so the claims above are
@@ -31,6 +33,87 @@ runs every common date format in front of you to show which ones are refused
 and why. The timezone section computes its answers in your own browser, in
 your own timezone: for a holiday library, being off by one day is not a crash
 but a different answer, and that is the failure worth seeing for yourself.
+
+## What else is on npm, and where each one stops
+
+Search npm for Japanese holidays and four packages come back before this one does.
+They are all fine at the question they answer. Whether they are enough depends on two things
+this library treats as the point rather than as extras: **arithmetic over business days**, and
+**saying when a holiday's date is not settled yet**.
+
+| Package | Where it stops |
+| --- | --- |
+| [`japanese-holidays`](https://www.npmjs.com/package/japanese-holidays) 1.0.10 | Holiday lookup only. `isHoliday` returns the holiday's *name*, so there is nowhere to hang a "this date is a forecast" flag even in principle. |
+| [`@holiday-jp/holiday_jp`](https://www.npmjs.com/package/@holiday-jp/holiday_jp) 2.5.1 | Holiday lookup only. Entries carry `date`, `week`, `name`, `name_en` — nothing about confidence. Its data ends after 2050, and it says so by returning `[]`. |
+| [`date-holidays`](https://www.npmjs.com/package/date-holidays) 3.35.0 | ~200 countries, which is its reason to exist and something this package will never be. For Japan: no business-day arithmetic (`getDayOff()` returns the weekly day-off name, not date math), and no confidence field. |
+| [`@gahojin-inc/holiday-japanese`](https://www.npmjs.com/package/@gahojin-inc/holiday-japanese) 2026.7.3 | Holiday lookup only. `isHoliday` returns a boolean. Its data ends after 2050 too, so `isHoliday(new Date(2051, 0, 1))` is `false` — New Year's Day. |
+| [`@smarthr/wareki`](https://www.npmjs.com/package/@smarthr/wareki) 1.3.1 | Wareki only — no holidays. See [below](#wareki-and-the-1873-calendar-reform) for what it does at the calendar reform. |
+
+### The equinox is a forecast, and only one of these says so
+
+Vernal and Autumnal Equinox Day are not legally fixed until the Official Gazette publishes the
+following year's *Calendrical Data* each February. The bundled official data currently runs
+through **2027**; every equinox after that is computed, not published. Asked about 20 March 2050:
+
+| | Answer | Says it is unconfirmed |
+| --- | --- | --- |
+| `japanese-holidays` | `'春分の日'` | no |
+| `@holiday-jp/holiday_jp` | `{ name: '春分の日', … }` | no |
+| `date-holidays` | `{ name: '春分の日', … }` | no |
+| `@gahojin-inc/holiday-japanese` | `true` | no |
+| `japan-calendar` | `{ name: '春分の日', confirmed: false, … }` | **yes** |
+
+Nobody is computing a *different* date here. Over all 144 equinoxes from 2028 to 2099, the two
+packages that carry data that far — `japanese-holidays` and `date-holidays` — land on exactly the
+same days this package does. The difference is only that a caller scheduling a payment run in 2050
+cannot tell from those two that the answer is a projection, and can from this one.
+
+### Where the data runs out
+
+The other two stop after 2050, and they stop quietly:
+
+```ts
+holidayJp.between(new Date(2051, 0, 1), new Date(2051, 0, 1)); // → []
+gahojin.isHoliday(new Date(2051, 0, 1));                       // → false
+
+isHoliday('2051-01-01'); // → { name: '元日', … }
+isHoliday('2100-01-01'); // → throws OutOfRangeError
+```
+
+New Year's Day 2051 is not in question — it is fixed by statute, like every holiday that is not an
+equinox. A caller cannot distinguish "we checked, it isn't a holiday" from "we have no data for
+that year" from a `false`. This package answers through 2099 and refuses past it, because for a
+holiday library the dangerous answer is not an error, it is a confident `false`.
+
+That is also the honest answer to "can't I just write the business-day loop myself?" You can — it
+is about a dozen lines on top of any of these, and as long as the library underneath has data for
+the span you are counting through, it gives the same answers this package does. It stops agreeing
+where that data stops. `2050-12-30` plus three business days is
+`2051-01-05`, because 12/31 is a Saturday, 1/1 is New Year's Day, and 1/2 is its substitute
+holiday; a loop built on a library whose data ends in 2050 counts those last two as working days
+and lands on `2051-01-04`.
+
+### Wareki, and the 1873 calendar reform
+
+`@smarthr/wareki` converts a Gregorian date to a wareki string, which is the other half of what
+this package does. At the boundary it invents dates:
+
+```ts
+dateToWareki(new Date(1872, 11, 31));
+// → { isValid: true, result: '明治5年12月31日', … }
+
+toWareki('1872-12-31');
+// → throws UnsupportedWarekiRangeError
+```
+
+明治5年12月31日 never existed. Japan switched calendars by declaring 明治5年12月3日 to be
+明治6年1月1日, so 明治5年12月 ended after two days. Dates before the reform are lunisolar and do
+not line up with Gregorian ones at all, which is why this package refuses them instead of
+formatting them.
+
+What each package exports, what each answers for those dates, and the wareki result above are
+re-measured in CI against those exact pinned versions —
+[`test/alternatives.test.ts`](./test/alternatives.test.ts) — rather than quoted from a survey.
 
 ## Install
 
