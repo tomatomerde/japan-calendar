@@ -152,6 +152,19 @@ describe('サポート範囲の終わり方', () => {
     expect(gahojin.isHoliday(NEW_YEARS_DAY_2051)).toBe(false);
   });
 
+  it('データが尽きる場所は、営業日計算の答えが割れる場所（README の例）', () => {
+    // 「営業日ループくらい自分で書ける」への答え。書けるが、下のライブラリの
+    // データが尽きたところで答えが割れる。README がその例に使っている日付。
+    expect(addBusinessDays('2050-12-30', 3)).toEqual({ year: 2051, month: 1, day: 5 });
+    // 割れる理由そのもの: この2日を平日と数えると 1/4 に着く。
+    expect(isHoliday('2051-01-01')).toMatchObject({ name: '元日' });
+    expect(isHoliday('2051-01-02')).toMatchObject({ name: '振替休日' });
+    // その2日を、比較対象2本は「祝日ではない」と答える。
+    expect(gahojin.isHoliday(localDate(2051, 1, 1))).toBe(false);
+    expect(gahojin.isHoliday(localDate(2051, 1, 2))).toBe(false);
+    expect(holidayJp.between(localDate(2051, 1, 1), localDate(2051, 1, 2))).toEqual([]);
+  });
+
   it('この package は範囲外を投げる（黙って「祝日ではない」と言わない）', () => {
     expect(MAX_SUPPORTED_YEAR).toBe(2099);
     expect(isHoliday('2099-01-01')).toMatchObject({ name: '元日' });

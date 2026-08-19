@@ -85,6 +85,14 @@ equinox. A caller cannot distinguish "we checked, it isn't a holiday" from "we h
 that year" from a `false`. This package answers through 2099 and refuses past it, because for a
 holiday library the dangerous answer is not an error, it is a confident `false`.
 
+That is also the honest answer to "can't I just write the business-day loop myself?" You can — it
+is about a dozen lines on top of any of these, and while every library involved has data for the
+year you are counting through, it gives the same answers this package does. It stops giving the
+same answers where the underlying data stops. `2050-12-30` plus three business days is
+`2051-01-05`, because 12/31 is a Saturday, 1/1 is New Year's Day, and 1/2 is its substitute
+holiday; a loop built on a library whose data ends in 2050 counts those last two as working days
+and lands on `2051-01-04`.
+
 ### Wareki, and the 1873 calendar reform
 
 `@smarthr/wareki` converts a Gregorian date to a wareki string, which is the other half of what
