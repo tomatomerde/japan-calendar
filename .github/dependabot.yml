@@ -13,36 +13,22 @@ updates:
       github-actions:
         patterns: ['*']
 
-  - package-ecosystem: npm
-    directory: /
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 3
-    # Minor and patch only, and majors are not proposed at all. This is a
-    # deliberate silence, not an oversight: the first grouped run bundled
-    # TypeScript 5.9 -> 7.0, @types/node 22 -> 26 and vitest 2 -> 4 into one
-    # pull request that failed CI outright. Those are migrations to schedule,
-    # not updates to merge, and a permanently red dependency pull request
-    # teaches you to ignore dependency pull requests. The majors are recorded
-    # in dev-standards' NOTES.md; drop the ignore block to see them here again.
-    groups:
-      dev-dependencies:
-        dependency-type: development
-        update-types: [minor, patch]
-        patterns: ['*']
-    ignore:
-      - dependency-name: '*'
-        update-types: [version-update:semver-major]
-      # The comparison targets of test/alternatives.test.ts, frozen on
-      # purpose. They are not dependencies of anything that ships; they are
-      # the other half of a measurement, and a measurement whose baseline
-      # moves on a schedule is not one. When one of them changes behaviour
-      # the right response is to re-read the README section it backs, which
-      # is a documentation task to pick up deliberately -- not a red pull
-      # request arriving on the first of the month.
-      - dependency-name: 'japanese-holidays'
-      - dependency-name: '@types/japanese-holidays'
-      - dependency-name: '@holiday-jp/holiday_jp'
-      - dependency-name: 'date-holidays'
-      - dependency-name: '@gahojin-inc/holiday-japanese'
-      - dependency-name: '@smarthr/wareki'
+  # npm version updates are switched off on purpose (2026-10-01). Every
+  # devDependency here is build or test tooling: the published package has
+  # zero runtime dependencies, so a bump changes nothing a user installs. The
+  # monthly bumps so far (#46, #60, #61) each passed CI and cost the
+  # maintainer a review request for no user-visible gain. The library is in maintenance-only mode, so the
+  # toolchain is brought up to date by whoever next does real work on it,
+  # in the same pull request.
+  #
+  # Security is not covered by this file and is unaffected: GitHub's
+  # vulnerability alerts and Dependabot security updates are repository
+  # settings, and keep firing for npm without an entry here.
+  #
+  # When re-enabling, keep it monthly, grouped, minor/patch only, and keep the
+  # comparison targets of test/alternatives.test.ts (japanese-holidays,
+  # @types/japanese-holidays, @holiday-jp/holiday_jp, date-holidays,
+  # @gahojin-inc/holiday-japanese, @smarthr/wareki) frozen: they are the
+  # baseline of a measurement, not dependencies. Majors (TypeScript 7,
+  # @types/node 26, ...) are migrations to schedule, recorded in
+  # dev-standards' NOTES.md.
